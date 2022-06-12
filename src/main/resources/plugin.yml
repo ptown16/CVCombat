@@ -1,0 +1,8 @@
+name: CVCombat
+version: 1.18
+main: org.cubeville.cvcombat.CVCombat
+api-version: 1.18
+depend: [ CVGames, CVLoadouts ]
+authors: [ Ptown16 ]
+description: A plugin for Player vs Player Combat on Cubeville
+website: cubeville.org
