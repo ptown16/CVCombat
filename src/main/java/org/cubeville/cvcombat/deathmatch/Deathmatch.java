@@ -17,28 +17,27 @@ import org.bukkit.scoreboard.DisplaySlot;
 import org.bukkit.scoreboard.Scoreboard;
 import org.cubeville.cvcombat.CVCombat;
 import org.cubeville.cvcombat.GameVariableKit;
-import org.cubeville.cvgames.models.Game;
+import org.cubeville.cvgames.models.TeamSelectorGame;
 import org.cubeville.cvgames.utils.GameUtils;
 import org.cubeville.cvgames.vartypes.GameVariableFlag;
 import org.cubeville.cvgames.vartypes.GameVariableInt;
 import org.cubeville.cvgames.vartypes.GameVariableList;
 import org.cubeville.cvloadouts.CVLoadouts;
 
+import javax.annotation.Nullable;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class Deathmatch extends Game {
+public class Deathmatch extends TeamSelectorGame {
 
     private String error;
     private int scoreboardSecondUpdater;
-    private final HashMap<Player, DeathmatchState> state = new HashMap<>();
     private List<HashMap<String, Object>> teams;
     private final ArrayList<Integer[]> teamScores = new ArrayList<>();
     private long startTime = 0;
     private long currentTime;
     private ArrayList<String> indexToLoadoutName = new ArrayList<>();
     private ArrayList<Integer> teamIndexToTpIndex = new ArrayList<>();
-
 
 
     public Deathmatch(String id) {
@@ -49,25 +48,33 @@ public class Deathmatch extends Game {
         addGameVariable("max-score", new GameVariableInt(), 20);
         addGameVariable("friendly-fire", new GameVariableFlag(), false);
         addGameVariable("duration", new GameVariableInt(), 10);
+        setTeamVariable("teams");
+    }
+
+    @Nullable
+    private DeathmatchState getState(Player p) {
+        if (state.get(p) == null || !(state.get(p) instanceof DeathmatchState)) return null;
+        return (DeathmatchState) state.get(p);
     }
 
     @Override
-    public void onPlayerLogout(Player p) {
-        Bukkit.getScheduler().cancelTask(state.get(p).respawnTimer);
-        state.get(p).respawnTimer = -1;
+    public void onPlayerLeave(Player p) {
+        DeathmatchState ds = getState(p);
+        Bukkit.getScheduler().cancelTask(ds.respawnTimer);
+        ds.respawnTimer = -1;
         if (isLastOnTeam(p)) {
-            teamScores.set(state.get(p).team, new Integer[]{state.get(p).team, -1});
+            teamScores.set(ds.team, new Integer[]{ds.team, -999});
         }
         state.remove(p);
-        if (state.size() <= 1 || teamScores.stream().filter(score -> score[1] != -1).count() <= 1) { finishGame(new ArrayList<>(state.keySet())); }
+        if (state.size() <= 1 || teamScores.stream().filter(score -> score[1] != -999).count() <= 1) finishGame();
         p.getScoreboard().clearSlot(DisplaySlot.SIDEBAR);
     }
 
     private boolean isLastOnTeam(Player p) {
-        DeathmatchState lts = state.get(p);
-        if (lts == null) return false;
+        DeathmatchState ds = getState(p);
+        if (ds == null) return false;
         for (Player player : state.keySet()) {
-            if (!player.equals(p) && state.get(p).team == lts.team) {
+            if (!player.equals(p) && ((DeathmatchState) state.get(player)).team == ds.team) {
                 return false;
             }
         }
@@ -75,24 +82,18 @@ public class Deathmatch extends Game {
     }
 
     @Override
-    public void onGameStart(List<Player> players) {
+    public void onGameStart(List<Set<Player>> playerTeamMap) {
         teams = (List<HashMap<String, Object>>) getVariable("teams");
-        List<Float> percentages = new ArrayList<>();
-        List<String> teamKeys = new ArrayList<>();
-        for (int i = 0; i < teams.size(); i++) {
-            teamKeys.add(Integer.toString(i));
-            percentages.add(1.0F / ((float) teams.size()));
-        }
 
         List<HashMap<String, Object>> kits = (List<HashMap<String, Object>>) getVariable("kits");
         for (HashMap<String, Object> kit : kits) {
+            System.out.println(kit.get("loadout"));
             indexToLoadoutName.add((String) kit.get("loadout"));
         }
 
-        Map<String, List<Player>> teamsMap = GameUtils.divideTeams(players, teamKeys, percentages);
         for (int i = 0; i < teams.size(); i++) {
             HashMap<String, Object> team = teams.get(i);
-            List<Player> teamPlayers = teamsMap.get(Integer.toString(i));
+            Set<Player> teamPlayers = playerTeamMap.get(i);
 
             if (teamPlayers == null) { continue; }
 
@@ -128,14 +129,14 @@ public class Deathmatch extends Game {
             if (currentTime > 0) {
                 updateScoreboard();
             } else {
-                finishGame(new ArrayList<>(state.keySet()));
+                finishGame();
             }
         }, 0L, 20L);
     }
 
     private void forceKitSelection(Player p) {
         p.setHealth(20);
-        DeathmatchState pState = state.get(p);
+        DeathmatchState pState = getState(p);
         if (pState == null) return;
         p.teleport((Location) teams.get(pState.team).get("kit-lobby"));
         p.closeInventory();
@@ -171,8 +172,9 @@ public class Deathmatch extends Game {
 
         for (int i = invSize - 9; i < invSize; i++) {
             if (i % 9 == 4) {
-                if (state.get(p).selectedKit == null) continue;
-                inv.setItem(i, (ItemStack) kits.get(state.get(p).selectedKit).get("item"));
+                DeathmatchState ds = getState(p);
+                if (ds.selectedKit == null) continue;
+                inv.setItem(i, (ItemStack) kits.get(ds.selectedKit).get("item"));
             } else {
                 inv.setItem(i, new ItemStack(Material.GRAY_STAINED_GLASS_PANE));
             }
@@ -184,7 +186,7 @@ public class Deathmatch extends Game {
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player)) return;
         Player clicker = (Player) event.getWhoClicked();
-        DeathmatchState clickerState = state.get(clicker);
+        DeathmatchState clickerState = getState(clicker);
         if (clickerState == null || !clickerState.selectingKit) return;
 
         // player must be currently selecting a kit, cancel all clicks and handle from there
@@ -204,17 +206,18 @@ public class Deathmatch extends Game {
     @EventHandler
     public void onInventoryClose(InventoryCloseEvent event) {
         // only allow ppl to close their inv if they are done with kit sel
+        if (!(event.getPlayer() instanceof Player)) return;
+        DeathmatchState clickerState = (DeathmatchState) state.get((Player) event.getPlayer());
+        if (clickerState == null) return;
         Bukkit.getScheduler().scheduleSyncDelayedTask(CVCombat.getInstance(), () -> {
-            if (!(event.getPlayer() instanceof Player)) return;
-            DeathmatchState clickerState = state.get((Player) event.getPlayer());
-            if (clickerState == null || !clickerState.selectingKit) return;
-            event.getPlayer().openInventory(generateKitInventory((Player) event.getPlayer()));
-        }, 5L);
-
+            if (clickerState.selectingKit) {
+                event.getPlayer().openInventory(generateKitInventory((Player) event.getPlayer()));
+            }
+        }, 10L);
     }
 
     public void spawnPlayerIntoGame(Player player) {
-        DeathmatchState pState = state.get(player);
+        DeathmatchState pState = (DeathmatchState) state.get(player);
         pState.selectingKit = false;
         player.closeInventory();
         int respawnIndex = teamIndexToTpIndex.get(pState.team);
@@ -226,11 +229,12 @@ public class Deathmatch extends Game {
     }
 
     @Override
-    public void onGameFinish(List<Player> players) {
-        for (Player player : players) {
-            if (state.containsKey(player) && state.get(player).respawnTimer != -1) {
-                Bukkit.getScheduler().cancelTask(state.get(player).respawnTimer);
-                state.get(player).respawnTimer = -1;
+    public void onGameFinish() {
+        for (Player player : state.keySet()) {
+            DeathmatchState ds = (DeathmatchState) state.get(player);
+            if (state.containsKey(player) && ds.respawnTimer != -1) {
+                Bukkit.getScheduler().cancelTask(ds.respawnTimer);
+                ds.respawnTimer = -1;
             }
             player.setHealth(20);
         }
@@ -239,28 +243,29 @@ public class Deathmatch extends Game {
         scoreboardSecondUpdater = -1;
 
         if (error != null) {
-            GameUtils.messagePlayerList(players, "§c§lERROR: §c" + error);
+            GameUtils.messagePlayerList(state.keySet(), "§c§lERROR: §c" + error);
         } else if (teams.size() > 1) {
-            finishTeamGame(players);
+            finishTeamGame();
         } else {
-            finishFFAGame(players);
+            finishFFAGame();
         }
         error = null;
         teamScores.clear();
-        state.clear();
+        indexToLoadoutName.clear();
+        teamIndexToTpIndex.clear();
     }
 
-    private void finishFFAGame(List<Player> players) {
-        List<Player> sortedPlayers  = state.keySet().stream().sorted(Comparator.comparingInt(o -> -1 * state.get(o).kills)).collect(Collectors.toList());
+    private void finishFFAGame() {
+        List<Player> sortedPlayers  = state.keySet().stream().sorted(Comparator.comparingInt(o -> -1 * getState(o).kills)).collect(Collectors.toList());
 
         ChatColor chatColor = (ChatColor) teams.get(0).get("chat-color");
 
-        if (sortedPlayers.size() > 1 && state.get(sortedPlayers.get(0)).kills == state.get(sortedPlayers.get(1)).kills) {
-            players.forEach(p -> {
+        if (sortedPlayers.size() > 1 && getState(sortedPlayers.get(0)).kills == getState(sortedPlayers.get(1)).kills) {
+            state.keySet().forEach(p -> {
                 StringBuilder output = new StringBuilder();
                 output.append(chatColor);
                 for (int i = 0; i < sortedPlayers.size(); i++) {
-                    if (i == (sortedPlayers.size() - 1) || state.get(sortedPlayers.get(i)).kills != state.get(sortedPlayers.get(i + 1)).kills) {
+                    if (i == (sortedPlayers.size() - 1) || getState(sortedPlayers.get(i)).kills != getState(sortedPlayers.get(i + 1)).kills) {
                         output.append(" and ").append(sortedPlayers.get(i).getDisplayName());
                         break;
                     } else if (i == 0) {
@@ -273,15 +278,15 @@ public class Deathmatch extends Game {
                 p.sendMessage(output.toString());
             });
         } else {
-            players.forEach(p -> {
+            state.keySet().forEach(p -> {
                 p.sendMessage(chatColor + sortedPlayers.get(0).getDisplayName() + " has won the game!");
             });
         }
 
-        players.forEach(p -> {
+        state.keySet().forEach(p -> {
             p.sendMessage("§b§l--- FINAL RESULTS ---");
             sortedPlayers.forEach(player -> {
-                p.sendMessage(chatColor + player.getDisplayName() + "§f: " + state.get(player).kills + " kills");
+                p.sendMessage(chatColor + player.getDisplayName() + "§f: " + getState(player).kills + " kills");
             });
             playerPostGame(p);
         });
@@ -293,7 +298,7 @@ public class Deathmatch extends Game {
     }
 
     private void sendStatistics(Player player) {
-        DeathmatchState ds = state.get(player);
+        DeathmatchState ds = getState(player);
         player.sendMessage("§7Kills: §f" + ds.kills);
         player.sendMessage("§7Deaths: §f" + ds.deaths);
         if (ds.kills == 0) {
@@ -306,25 +311,29 @@ public class Deathmatch extends Game {
     }
 
 
-    private void finishTeamGame(List<Player> players) {
+    private void finishTeamGame() {
         List<Integer[]> sortedTeams = teamScores.stream().sorted(Comparator.comparingInt(o -> -1 * o[1])).collect(Collectors.toList());
         if (Objects.equals(sortedTeams.get(0)[1], sortedTeams.get(1)[1])) {
-            players.forEach(p -> {
+            state.keySet().forEach(p -> {
                 p.sendMessage("§f§lTie Game!");
             });
         } else {
             String teamName = (String) teams.get(sortedTeams.get(0)[0]).get("name");
             ChatColor chatColor = (ChatColor) teams.get(sortedTeams.get(0)[0]).get("chat-color");
-            players.forEach(p -> {
+            state.keySet().forEach(p -> {
                 p.sendMessage(chatColor + "§l" + teamName + chatColor + "§l has won the game!");
             });
         }
-        players.forEach(p -> {
+        state.keySet().forEach(p -> {
             p.sendMessage("§b§l--- FINAL RESULTS ---");
             sortedTeams.forEach(pair -> {
                 String teamName = (String) teams.get(pair[0]).get("name");
                 ChatColor chatColor = (ChatColor) teams.get(pair[0]).get("chat-color");
-                p.sendMessage(chatColor + teamName + "§f: " + pair[1] + " kills");
+                if (pair[1] == -999) {
+                    p.sendMessage(chatColor + teamName + "§f: §cLeft Game");
+                } else {
+                    p.sendMessage(chatColor + teamName + "§f: " + pair[1] + " kills");
+                }
             });
             playerPostGame(p);
         });
@@ -340,16 +349,20 @@ public class Deathmatch extends Game {
         scoreboardLines.add("   ");
 
         if (teams.size() == 1) {
-            state.keySet().stream().sorted(Comparator.comparingInt(o -> -1 * state.get(o).kills)).forEach( p -> {
-                int points = state.get(p).kills;
+            state.keySet().stream().sorted(Comparator.comparingInt(o -> -1 * getState(o).kills)).forEach( p -> {
+                int points = getState(p).kills;
                 scoreboardLines.add("§a" + p.getDisplayName() + "§f: " + points + " kills");
             });
             scoreboard = GameUtils.createScoreboard(arena, "§b§lFFA Deathmatch", scoreboardLines);
         } else {
             for (int i = 0; i < teamScores.size(); i++) {
                 String line = teams.get(i).get("name") + "§f: ";
-                line += teamScores.get(i)[1];
-                line += " kills";
+                if (teamScores.get(i)[1] == -999) {
+                    line += "§cLeft Game";
+                } else {
+                    line += teamScores.get(i)[1];
+                    line += " kills";
+                }
                 scoreboardLines.add(line);
             }
             scoreboard = GameUtils.createScoreboard(arena, "§b§lTeam Deathmatch", scoreboardLines);
@@ -369,9 +382,9 @@ public class Deathmatch extends Game {
             if (!(arrow.getShooter() instanceof Player)) return;
             damager = (Player) arrow.getShooter();
         } else { return; }
-        DeathmatchState damagerState = state.get(damager);
+        DeathmatchState damagerState = getState(damager);
         Player hit = (Player) e.getEntity();
-        DeathmatchState hitState = state.get(hit);
+        DeathmatchState hitState = getState(hit);
         if (damagerState == null || hitState == null) return;
 
         // prevent friendly fire, if applicable
@@ -400,12 +413,12 @@ public class Deathmatch extends Game {
         int maxScore = (int) getVariable("max-score");
         if (teams.size() > 1) {
             if (teamScores.get(damagerState.team)[1] >= maxScore) {
-                finishGame(new ArrayList<>(state.keySet()));
+                finishGame();
                 return;
             }
         } else {
             if (damagerState.kills >= maxScore) {
-                finishGame(new ArrayList<>(state.keySet()));
+                finishGame();
                 return;
             }
         }
