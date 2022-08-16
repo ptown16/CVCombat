@@ -1,6 +1,8 @@
 package org.cubeville.cvcombat.deathmatch;
 
-public class DeathmatchState {
+import org.cubeville.cvgames.models.PlayerState;
+
+public class DeathmatchState extends PlayerState {
     int team;
     int kills = 0;
     int deaths = 0;
@@ -13,4 +15,8 @@ public class DeathmatchState {
         this.team = team;
     }
 
+    @Override
+    public int getSortingValue() {
+        return kills;
+    }
 }

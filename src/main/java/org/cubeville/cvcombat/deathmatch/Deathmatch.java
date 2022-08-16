@@ -14,14 +14,10 @@ import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.scoreboard.DisplaySlot;
-import org.bukkit.scoreboard.Scoreboard;
 import org.cubeville.cvcombat.CVCombat;
-import org.cubeville.cvcombat.GameVariableKit;
 import org.cubeville.cvgames.models.TeamSelectorGame;
 import org.cubeville.cvgames.utils.GameUtils;
-import org.cubeville.cvgames.vartypes.GameVariableFlag;
-import org.cubeville.cvgames.vartypes.GameVariableInt;
-import org.cubeville.cvgames.vartypes.GameVariableList;
+import org.cubeville.cvgames.vartypes.*;
 import org.cubeville.cvloadouts.CVLoadouts;
 
 import javax.annotation.Nullable;
@@ -40,19 +36,26 @@ public class Deathmatch extends TeamSelectorGame {
     private ArrayList<Integer> teamIndexToTpIndex = new ArrayList<>();
 
 
-    public Deathmatch(String id) {
-        super(id);
-        addGameVariable("kits", new GameVariableList<>(GameVariableKit.class));
-        addGameVariable("teams", new GameVariableList<>(DeathmatchTeam.class));
+    public Deathmatch(String id, String arenaName) {
+        super(id, arenaName);
+        addGameVariableObjectList("kits", new HashMap<>(){{
+            put("name", new GameVariableString());
+            put("item", new GameVariableItem());
+            put("loadout", new GameVariableString());
+        }});
+        addGameVariableTeamsList(new HashMap<>(){{
+            put("loadout-team", new GameVariableString());
+            put("tps", new GameVariableList<>(GameVariableLocation.class));
+            put("kit-lobby", new GameVariableLocation());
+        }});
         addGameVariable("respawn-time", new GameVariableInt(), 10);
         addGameVariable("max-score", new GameVariableInt(), 20);
         addGameVariable("friendly-fire", new GameVariableFlag(), false);
         addGameVariable("duration", new GameVariableInt(), 10);
-        setTeamVariable("teams");
     }
 
     @Nullable
-    private DeathmatchState getState(Player p) {
+    protected DeathmatchState getState(Player p) {
         if (state.get(p) == null || !(state.get(p) instanceof DeathmatchState)) return null;
         return (DeathmatchState) state.get(p);
     }
@@ -87,7 +90,6 @@ public class Deathmatch extends TeamSelectorGame {
 
         List<HashMap<String, Object>> kits = (List<HashMap<String, Object>>) getVariable("kits");
         for (HashMap<String, Object> kit : kits) {
-            System.out.println(kit.get("loadout"));
             indexToLoadoutName.add((String) kit.get("loadout"));
         }
 
@@ -127,7 +129,7 @@ public class Deathmatch extends TeamSelectorGame {
         scoreboardSecondUpdater = Bukkit.getScheduler().scheduleSyncRepeatingTask(CVCombat.getInstance(), () -> {
             currentTime = duration - (System.currentTimeMillis() - startTime);
             if (currentTime > 0) {
-                updateScoreboard();
+                updateDefaultScoreboard((int) currentTime, teamScores, "kills");
             } else {
                 finishGame();
             }
@@ -283,13 +285,11 @@ public class Deathmatch extends TeamSelectorGame {
             });
         }
 
-        state.keySet().forEach(p -> {
-            p.sendMessage("§b§l--- FINAL RESULTS ---");
-            sortedPlayers.forEach(player -> {
-                p.sendMessage(chatColor + player.getDisplayName() + "§f: " + getState(player).kills + " kills");
-            });
-            playerPostGame(p);
+        sendMessageToArena("§b§l--- FINAL RESULTS ---");
+        sortedPlayers.forEach(player -> {
+            sendMessageToArena(chatColor + player.getDisplayName() + "§f: " + getState(player).kills + " kills");
         });
+        state.keySet().forEach(this::playerPostGame);
     }
 
     private void playerPostGame(Player p) {
@@ -314,60 +314,23 @@ public class Deathmatch extends TeamSelectorGame {
     private void finishTeamGame() {
         List<Integer[]> sortedTeams = teamScores.stream().sorted(Comparator.comparingInt(o -> -1 * o[1])).collect(Collectors.toList());
         if (Objects.equals(sortedTeams.get(0)[1], sortedTeams.get(1)[1])) {
-            state.keySet().forEach(p -> {
-                p.sendMessage("§f§lTie Game!");
-            });
+            sendMessageToArena("§f§lTie Game!");
         } else {
             String teamName = (String) teams.get(sortedTeams.get(0)[0]).get("name");
             ChatColor chatColor = (ChatColor) teams.get(sortedTeams.get(0)[0]).get("chat-color");
-            state.keySet().forEach(p -> {
-                p.sendMessage(chatColor + "§l" + teamName + chatColor + "§l has won the game!");
-            });
+            sendMessageToArena(chatColor + "§l" + teamName + chatColor + "§l has won the game!");
         }
-        state.keySet().forEach(p -> {
-            p.sendMessage("§b§l--- FINAL RESULTS ---");
-            sortedTeams.forEach(pair -> {
-                String teamName = (String) teams.get(pair[0]).get("name");
-                ChatColor chatColor = (ChatColor) teams.get(pair[0]).get("chat-color");
-                if (pair[1] == -999) {
-                    p.sendMessage(chatColor + teamName + "§f: §cLeft Game");
-                } else {
-                    p.sendMessage(chatColor + teamName + "§f: " + pair[1] + " kills");
-                }
-            });
-            playerPostGame(p);
-        });
-    }
-
-    private void updateScoreboard() {
-        Scoreboard scoreboard;
-        ArrayList<String> scoreboardLines = new ArrayList<>();
-
-        scoreboardLines.add("§bTime remaining: §f" +
-                String.format("%d:%02d", (int) currentTime / 60000, (int) (currentTime / 1000) % 60)
-        );
-        scoreboardLines.add("   ");
-
-        if (teams.size() == 1) {
-            state.keySet().stream().sorted(Comparator.comparingInt(o -> -1 * getState(o).kills)).forEach( p -> {
-                int points = getState(p).kills;
-                scoreboardLines.add("§a" + p.getDisplayName() + "§f: " + points + " kills");
-            });
-            scoreboard = GameUtils.createScoreboard(arena, "§b§lFFA Deathmatch", scoreboardLines);
-        } else {
-            for (int i = 0; i < teamScores.size(); i++) {
-                String line = teams.get(i).get("name") + "§f: ";
-                if (teamScores.get(i)[1] == -999) {
-                    line += "§cLeft Game";
-                } else {
-                    line += teamScores.get(i)[1];
-                    line += " kills";
-                }
-                scoreboardLines.add(line);
+        sendMessageToArena("§b§l--- FINAL RESULTS ---");
+        sortedTeams.forEach(pair -> {
+            String teamName = (String) teams.get(pair[0]).get("name");
+            ChatColor chatColor = (ChatColor) teams.get(pair[0]).get("chat-color");
+            if (pair[1] == -999) {
+                sendMessageToArena(chatColor + teamName + "§f: §cLeft Game");
+            } else {
+                sendMessageToArena(chatColor + teamName + "§f: " + pair[1] + " kills");
             }
-            scoreboard = GameUtils.createScoreboard(arena, "§b§lTeam Deathmatch", scoreboardLines);
-        }
-        this.state.keySet().forEach(p -> p.setScoreboard(scoreboard));
+        });
+        state.keySet().forEach(this::playerPostGame);
     }
 
     @EventHandler
@@ -406,9 +369,7 @@ public class Deathmatch extends TeamSelectorGame {
         // Send message to everyone abt the kill
         ChatColor damagerChatColor = (ChatColor) teams.get(damagerState.team).get("chat-color");
         ChatColor hitChatColor = (ChatColor) teams.get(hitState.team).get("chat-color");
-        state.keySet().forEach(player ->
-                player.sendMessage(damagerChatColor + damager.getDisplayName() + "§e has killed " + hitChatColor + hit.getDisplayName())
-        );
+        sendMessageToArena(damagerChatColor + damager.getDisplayName() + "§e has killed " + hitChatColor + hit.getDisplayName());
 
         int maxScore = (int) getVariable("max-score");
         if (teams.size() > 1) {
@@ -423,6 +384,6 @@ public class Deathmatch extends TeamSelectorGame {
             }
         }
         forceKitSelection(hit);
-        updateScoreboard();
+        updateDefaultScoreboard((int) currentTime, teamScores, "kills");
     }
 }
