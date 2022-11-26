@@ -13,6 +13,7 @@ import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.potion.PotionEffect;
 import org.bukkit.scoreboard.DisplaySlot;
 import org.cubeville.cvcombat.CVCombat;
 import org.cubeville.cvgames.models.TeamSelectorGame;
@@ -39,7 +40,6 @@ public class Deathmatch extends TeamSelectorGame {
     public Deathmatch(String id, String arenaName) {
         super(id, arenaName);
         addGameVariableObjectList("kits", new HashMap<>(){{
-            put("name", new GameVariableString());
             put("item", new GameVariableItem());
             put("loadout", new GameVariableString());
         }});
@@ -64,6 +64,10 @@ public class Deathmatch extends TeamSelectorGame {
     public void onPlayerLeave(Player p) {
         DeathmatchState ds = getState(p);
         Bukkit.getScheduler().cancelTask(ds.respawnTimer);
+        // remove all potion fx from the player who left
+        for (PotionEffect effect : p.getActivePotionEffects()) {
+            p.removePotionEffect(effect.getType());
+        }
         ds.respawnTimer = -1;
         if (isLastOnTeam(p)) {
             teamScores.set(ds.team, new Integer[]{ds.team, -999});
@@ -165,6 +169,7 @@ public class Deathmatch extends TeamSelectorGame {
     }
 
     private Inventory generateKitInventory(Player p) {
+        if (getState(p) == null) return null;
         List<HashMap<String, Object>> kits = (List<HashMap<String, Object>>) getVariable("kits");
         int invSize = (2 + (kits.size() / 9)) * 9;
         Inventory inv = Bukkit.createInventory(p, invSize, "Deathmatch on " + arena.getName());
@@ -228,6 +233,11 @@ public class Deathmatch extends TeamSelectorGame {
         respawnIndex++;
         if (respawnIndex >= tps.size()) { respawnIndex = 0; }
         teamIndexToTpIndex.set(pState.team, respawnIndex);
+//        CVStats.getInstance().sendMetric("selected_kit", player, Map.of(
+//                "arena", arena.getName(),
+//                "game", "deathmatch",
+//                "kit", indexToLoadoutName.get(pState.selectedKit)
+//        ));
     }
 
     @Override
@@ -239,6 +249,11 @@ public class Deathmatch extends TeamSelectorGame {
                 ds.respawnTimer = -1;
             }
             player.setHealth(20);
+            player.setSaturation(20);
+            // remove all potion fx from the player who died
+            for (PotionEffect effect : player.getActivePotionEffects()) {
+                player.removePotionEffect(effect.getType());
+            }
         }
 
         Bukkit.getScheduler().cancelTask(scoreboardSecondUpdater);
@@ -366,10 +381,29 @@ public class Deathmatch extends TeamSelectorGame {
         damagerState.kills += 1;
         teamScores.set(damagerState.team, new Integer[]{ damagerState.team, teamScores.get(damagerState.team)[1] + 1 });
 
+        // remove all potion fx from the player who died
+        for (PotionEffect effect : hit.getActivePotionEffects()) {
+            hit.removePotionEffect(effect.getType());
+        }
+
         // Send message to everyone abt the kill
         ChatColor damagerChatColor = (ChatColor) teams.get(damagerState.team).get("chat-color");
         ChatColor hitChatColor = (ChatColor) teams.get(hitState.team).get("chat-color");
         sendMessageToArena(damagerChatColor + damager.getDisplayName() + "§e has killed " + hitChatColor + hit.getDisplayName());
+
+//        CVStats.getInstance().sendMetric("pvp_kill", damager, Map.of(
+//                "arena", arena.getName(),
+//                "game", "deathmatch",
+//                "kit", indexToLoadoutName.get(damagerState.selectedKit),
+//                "killed", hit.getUniqueId().toString()
+//        ));
+//
+//        CVStats.getInstance().sendMetric("pvp_death", hit, Map.of(
+//                "arena", arena.getName(),
+//                "game", "deathmatch",
+//                "kit", indexToLoadoutName.get(hitState.selectedKit),
+//                "killedBy", damager.getUniqueId().toString()
+//        ));
 
         int maxScore = (int) getVariable("max-score");
         if (teams.size() > 1) {

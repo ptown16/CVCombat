@@ -12,7 +12,7 @@ public final class CVCombat extends JavaPlugin {
     public void onEnable() {
         // Plugin startup logic
         instance = this;
-        CVGames.gameManager().registerGame("deathmatch", Deathmatch.class);
+        CVGames.gameManager().registerGame("deathmatch", Deathmatch::new);
     }
 
     @Override
