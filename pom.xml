@@ -53,7 +53,7 @@
         <dependency>
             <groupId>com.github.ptown16</groupId>
             <artifactId>CVGames</artifactId>
-            <version>aec5f6e273</version>
+            <version>b96fc8661e</version>
         </dependency>
         <dependency>
             <groupId>org.cubeville</groupId>
