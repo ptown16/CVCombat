@@ -6,7 +6,7 @@
 
     <groupId>org.cubeville</groupId>
     <artifactId>CVCombat</artifactId>
-    <version>1.18</version>
+    <version>v1.0.14</version>
     <packaging>jar</packaging>
 
     <name>CVCombat</name>
@@ -53,7 +53,7 @@
         <dependency>
             <groupId>com.github.ptown16</groupId>
             <artifactId>CVGames</artifactId>
-            <version>b96fc8661e</version>
+            <version>v1.0.14</version>
         </dependency>
         <dependency>
             <groupId>org.cubeville</groupId>

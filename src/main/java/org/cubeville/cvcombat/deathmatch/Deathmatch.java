@@ -40,18 +40,18 @@ public class Deathmatch extends TeamSelectorGame {
         public Deathmatch(String id, String arenaName) {
                 super(id, arenaName);
                 addGameVariableObjectList("kits", new HashMap<>(){{
-                        put("item", new GameVariableItem());
-                        put("loadout", new GameVariableString());
-                }});
+                        put("item", new GameVariableItem("The item used to represent the kit in the GUI"));
+                        put("loadout", new GameVariableString("The loadout used for the kit"));
+                }}, "The loadout kits that can be used in this arena");
                 addGameVariableTeamsList(new HashMap<>(){{
-                        put("loadout-team", new GameVariableString());
-                        put("tps", new GameVariableList<>(GameVariableLocation.class));
-                        put("kit-lobby", new GameVariableLocation());
+                        put("loadout-team", new GameVariableString("The team used for loadouts"));
+                        put("tps", new GameVariableList<>(GameVariableLocation.class, "The locations that players on this team will spawn in at"));
+                        put("kit-lobby", new GameVariableLocation("The lobby that players are in while selecting kits"));
                 }});
-                addGameVariable("respawn-time", new GameVariableInt(), 10);
-                addGameVariable("max-score", new GameVariableInt(), 20);
-                addGameVariable("friendly-fire", new GameVariableFlag(), false);
-                addGameVariable("duration", new GameVariableInt(), 10);
+                addGameVariable("respawn-time", new GameVariableInt("The amount of time before a player respawns into the arena"), 10);
+                addGameVariable("max-score", new GameVariableInt("The max score a team can get before they win"), 20);
+                addGameVariable("friendly-fire", new GameVariableFlag("Wether players can kill others on their own team or not"), false);
+                addGameVariable("duration", new GameVariableInt("The max amount of time a game lasts (in minutes)"), 10);
         }
 
         @Nullable
