@@ -21,7 +21,6 @@ import org.cubeville.cvgames.utils.GameUtils;
 import org.cubeville.cvgames.vartypes.*;
 import org.cubeville.cvloadouts.CVLoadouts;
 
-import javax.annotation.Nullable;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -46,7 +45,6 @@ public class Deathmatch extends TeamSelectorGame {
                 addGameVariableTeamsList(new HashMap<>(){{
                         put("loadout-team", new GameVariableString("The team used for loadouts"));
                         put("tps", new GameVariableList<>(GameVariableLocation.class, "The locations that players on this team will spawn in at"));
-                        put("kit-lobby", new GameVariableLocation("The lobby that players are in while selecting kits"));
                 }});
                 addGameVariable("respawn-time", new GameVariableInt("The amount of time before a player respawns into the arena"), 10);
                 addGameVariable("max-score", new GameVariableInt("The max score a team can get before they win"), 20);
@@ -54,10 +52,15 @@ public class Deathmatch extends TeamSelectorGame {
                 addGameVariable("duration", new GameVariableInt("The max amount of time a game lasts (in minutes)"), 10);
         }
 
-        @Nullable
+        @Override
         protected DeathmatchState getState(Player p) {
                 if (state.get(p) == null || !(state.get(p) instanceof DeathmatchState)) return null;
                 return (DeathmatchState) state.get(p);
+        }
+
+        @Override
+        public int getPlayerTeamIndex(Player player) {
+                return Objects.requireNonNull(getState(player)).team;
         }
 
         @Override
