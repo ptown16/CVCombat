@@ -112,12 +112,11 @@ public class Deathmatch extends TeamSelectorGame {
             for (Player player : teamPlayers) {
                 state.put(player, new DeathmatchState(i));
 
-            //    Location tpLoc = (Location) team.get("kit-lobby");
-                Location tpLoc = (Location) getVariable("spectator-spawn");
+                Location tpLoc = (Location) team.get("kit-lobby");
                 if (!tpLoc.getChunk().isLoaded()) {
                     tpLoc.getChunk().load();
                 }
-            //    player.teleport(tpLoc);
+                player.teleport(tpLoc);
 
                 if (teams.size() > 1) {
                     player.sendMessage(chatColor + "You are on §l" + teamName + chatColor + "!");
@@ -127,9 +126,6 @@ public class Deathmatch extends TeamSelectorGame {
                 player.sendMessage(chatColor + "First to " + getVariable("max-score") + " points wins!");
                 forceKitSelection(player);
             }
-        //    for (Player player : teamPlayers) {
-        //        forceKitSelection(player);
-        //    }
         }
         startTime = System.currentTimeMillis();
 
@@ -148,9 +144,7 @@ public class Deathmatch extends TeamSelectorGame {
         p.setHealth(20);
         DeathmatchState pState = getState(p);
         if (pState == null) return;
-    //    p.teleport((Location) teams.get(pState.team).get("kit-lobby"));
-        p.getInventory().clear();
-        addSpectator(p);
+        p.teleport((Location) teams.get(pState.team).get("kit-lobby"));
         p.closeInventory();
         p.openInventory(generateKitInventory(p));
         pState.selectingKit = true;
@@ -208,9 +202,8 @@ public class Deathmatch extends TeamSelectorGame {
         // don't handle a click unless it is on one of the kits
         if (event.getSlot() >= indexToLoadoutName.size() || event.getSlot() < 0) return;
         clickerState.selectedKit = event.getSlot();
-    //    CVLoadouts.getInstance().applyLoadoutToPlayer(clicker, indexToLoadoutName.get(clickerState.selectedKit), List.of((String) teams.get(clickerState.team).get("loadout-team")));
+        CVLoadouts.getInstance().applyLoadoutToPlayer(clicker, indexToLoadoutName.get(clickerState.selectedKit), List.of((String) teams.get(clickerState.team).get("loadout-team")));
         if (clickerState.hasDied) {
-            clickerState.selectingKit = false;
             event.getWhoClicked().closeInventory();
         } else {
             spawnPlayerIntoGame(clicker);
@@ -224,10 +217,8 @@ public class Deathmatch extends TeamSelectorGame {
         DeathmatchState clickerState = (DeathmatchState) state.get((Player) event.getPlayer());
         if (clickerState == null) return;
         Bukkit.getScheduler().scheduleSyncDelayedTask(CVCombat.getInstance(), () -> {
-        //    if (clickerState.selectingKit) {
-        Inventory inventory = generateKitInventory((Player) event.getPlayer());
-            if (clickerState.selectingKit && inventory != null) {
-                event.getPlayer().openInventory(inventory);
+            if (clickerState.selectingKit) {
+                event.getPlayer().openInventory(generateKitInventory((Player) event.getPlayer()));
             }
         }, 10L);
     }
@@ -239,8 +230,6 @@ public class Deathmatch extends TeamSelectorGame {
         int respawnIndex = teamIndexToTpIndex.get(pState.team);
         List<Location> tps = (List<Location>) teams.get(pState.team).get("tps");
         player.teleport(tps.get(respawnIndex));
-        removeSpectator(player);
-        CVLoadouts.getInstance().applyLoadoutToPlayer(player, indexToLoadoutName.get(pState.selectedKit), List.of((String) teams.get(pState.team).get("loadout-team")));
         respawnIndex++;
         if (respawnIndex >= tps.size()) { respawnIndex = 0; }
         teamIndexToTpIndex.set(pState.team, respawnIndex);
@@ -385,7 +374,7 @@ public class Deathmatch extends TeamSelectorGame {
 
         // only continue past this point if this is the killing blow
         if (e.getFinalDamage() < hit.getHealth()) return;
-        e.setDamage(0);
+        e.setCancelled(true);
 
         hitState.deaths += 1;
         hitState.hasDied = true;
