@@ -21,7 +21,6 @@ import org.cubeville.cvgames.utils.GameUtils;
 import org.cubeville.cvgames.vartypes.*;
 import org.cubeville.cvloadouts.CVLoadouts;
 
-import javax.annotation.Nullable;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -40,24 +39,28 @@ public class Deathmatch extends TeamSelectorGame {
     public Deathmatch(String id, String arenaName) {
         super(id, arenaName);
         addGameVariableObjectList("kits", new HashMap<>(){{
-            put("item", new GameVariableItem());
-            put("loadout", new GameVariableString());
-        }});
+            put("item", new GameVariableItem("The item used to represent the kit in the GUI"));
+            put("loadout", new GameVariableString("The loadout used for the kit"));
+        }}, "The loadout kits that can be used in this arena");
         addGameVariableTeamsList(new HashMap<>(){{
-            put("loadout-team", new GameVariableString());
-            put("tps", new GameVariableList<>(GameVariableLocation.class));
-            put("kit-lobby", new GameVariableLocation());
+            put("loadout-team", new GameVariableString("The team used for loadouts"));
+            put("tps", new GameVariableList<>(GameVariableLocation.class, "The locations that players on this team will spawn in at"));
         }});
-        addGameVariable("respawn-time", new GameVariableInt(), 10);
-        addGameVariable("max-score", new GameVariableInt(), 20);
-        addGameVariable("friendly-fire", new GameVariableFlag(), false);
-        addGameVariable("duration", new GameVariableInt(), 10);
+        addGameVariable("respawn-time", new GameVariableInt("The amount of time before a player respawns into the arena"), 10);
+        addGameVariable("max-score", new GameVariableInt("The max score a team can get before they win"), 20);
+        addGameVariable("friendly-fire", new GameVariableFlag("Wether players can kill others on their own team or not"), false);
+        addGameVariable("duration", new GameVariableInt("The max amount of time a game lasts (in minutes)"), 10);
     }
 
-    @Nullable
+    @Override
     protected DeathmatchState getState(Player p) {
         if (state.get(p) == null || !(state.get(p) instanceof DeathmatchState)) return null;
         return (DeathmatchState) state.get(p);
+    }
+
+    @Override
+    public int getPlayerTeamIndex(Player player) {
+        return Objects.requireNonNull(getState(player)).team;
     }
 
     @Override
@@ -112,12 +115,10 @@ public class Deathmatch extends TeamSelectorGame {
             for (Player player : teamPlayers) {
                 state.put(player, new DeathmatchState(i));
 
-            //    Location tpLoc = (Location) team.get("kit-lobby");
                 Location tpLoc = (Location) getVariable("spectator-spawn");
                 if (!tpLoc.getChunk().isLoaded()) {
                     tpLoc.getChunk().load();
                 }
-            //    player.teleport(tpLoc);
 
                 if (teams.size() > 1) {
                     player.sendMessage(chatColor + "You are on §l" + teamName + chatColor + "!");
@@ -127,9 +128,6 @@ public class Deathmatch extends TeamSelectorGame {
                 player.sendMessage(chatColor + "First to " + getVariable("max-score") + " points wins!");
                 forceKitSelection(player);
             }
-        //    for (Player player : teamPlayers) {
-        //        forceKitSelection(player);
-        //    }
         }
         startTime = System.currentTimeMillis();
 
@@ -148,7 +146,6 @@ public class Deathmatch extends TeamSelectorGame {
         p.setHealth(20);
         DeathmatchState pState = getState(p);
         if (pState == null) return;
-    //    p.teleport((Location) teams.get(pState.team).get("kit-lobby"));
         p.getInventory().clear();
         addSpectator(p);
         p.closeInventory();
@@ -208,7 +205,6 @@ public class Deathmatch extends TeamSelectorGame {
         // don't handle a click unless it is on one of the kits
         if (event.getSlot() >= indexToLoadoutName.size() || event.getSlot() < 0) return;
         clickerState.selectedKit = event.getSlot();
-    //    CVLoadouts.getInstance().applyLoadoutToPlayer(clicker, indexToLoadoutName.get(clickerState.selectedKit), List.of((String) teams.get(clickerState.team).get("loadout-team")));
         if (clickerState.hasDied) {
             clickerState.selectingKit = false;
             event.getWhoClicked().closeInventory();
@@ -224,8 +220,7 @@ public class Deathmatch extends TeamSelectorGame {
         DeathmatchState clickerState = (DeathmatchState) state.get((Player) event.getPlayer());
         if (clickerState == null) return;
         Bukkit.getScheduler().scheduleSyncDelayedTask(CVCombat.getInstance(), () -> {
-        //    if (clickerState.selectingKit) {
-        Inventory inventory = generateKitInventory((Player) event.getPlayer());
+            Inventory inventory = generateKitInventory((Player) event.getPlayer());
             if (clickerState.selectingKit && inventory != null) {
                 event.getPlayer().openInventory(inventory);
             }
