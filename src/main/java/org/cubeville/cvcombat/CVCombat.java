@@ -2,6 +2,7 @@ package org.cubeville.cvcombat;
 
 import org.bukkit.plugin.java.JavaPlugin;
 import org.cubeville.cvcombat.deathmatch.Deathmatch;
+import org.cubeville.cvcombat.sumo.Sumo;
 import org.cubeville.cvgames.CVGames;
 
 public final class CVCombat extends JavaPlugin {
@@ -13,6 +14,7 @@ public final class CVCombat extends JavaPlugin {
                 // Plugin startup logic
                 instance = this;
                 CVGames.gameManager().registerGame("deathmatch", Deathmatch::new);
+                CVGames.gameManager().registerGame("sumo", Sumo::new);
         }
 
         @Override

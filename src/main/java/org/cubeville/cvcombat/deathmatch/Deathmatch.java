@@ -164,7 +164,7 @@ public class Deathmatch extends TeamSelectorGame {
                                 } else if (respawnTime <= 3 || firstRun){
                                         firstRun = false;
                                         p.playSound(p.getLocation(), Sound.BLOCK_TRIPWIRE_CLICK_ON, 3.0F, 1.4F);
-                                        p.sendMessage("§bRespawning in " + respawnTime + "...");
+                                        p.sendMessage(" bRespawning in " + respawnTime + "...");
                                 }
                                 respawnTime--;
                         }
