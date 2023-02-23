@@ -7,21 +7,21 @@ import org.cubeville.cvgames.CVGames;
 
 public final class CVCombat extends JavaPlugin {
 
-        private static CVCombat instance;
+    private static CVCombat instance;
 
-        @Override
-        public void onEnable() {
-                // Plugin startup logic
-                instance = this;
-                CVGames.gameManager().registerGame("deathmatch", Deathmatch::new);
-                CVGames.gameManager().registerGame("sumo", Sumo::new);
-        }
+    @Override
+    public void onEnable() {
+        // Plugin startup logic
+        instance = this;
+        CVGames.gameManager().registerGame("deathmatch", Deathmatch::new);
+        CVGames.gameManager().registerGame("sumo", Sumo::new);
+    }
 
-        @Override
-        public void onDisable() {
-                // Plugin shutdown logic
-        }
+    @Override
+    public void onDisable() {
+        // Plugin shutdown logic
+    }
 
-        public static CVCombat getInstance() { return instance; }
+    public static CVCombat getInstance() { return instance; }
 
 }
