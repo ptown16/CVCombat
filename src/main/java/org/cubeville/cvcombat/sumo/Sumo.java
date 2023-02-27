@@ -41,9 +41,9 @@ public class Sumo extends Game {
         int knockbackLevel = (int) getVariable("knockback-level");
         ItemStack knockbackItem = null;
         if (knockbackLevel != 0) {
-            knockbackItem = new ItemStack(Material.STICK);
+            knockbackItem = new ItemStack(Material.BRICK);
             ItemMeta knockbackItemMeta = knockbackItem.getItemMeta();
-            knockbackItemMeta.setDisplayName("§bSumo Knockback Stick");
+            knockbackItemMeta.setDisplayName("§bSumo Knockback Apple");
             knockbackItemMeta.addEnchant(Enchantment.KNOCKBACK, knockbackLevel, true);
             knockbackItem.setItemMeta(knockbackItemMeta);
         }
