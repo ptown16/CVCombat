@@ -71,6 +71,9 @@ public class Sumo extends Game {
                     getState(player).isAlive = false;
                     GameUtils.messagePlayerList(state.keySet(), "§d" + player.getName() + " has fallen!");
                     player.teleport(exit);
+                    player.setHealth(20);
+                    player.setSaturation(20);
+                    player.setFoodLevel(20);
                 }
             }
             // we need to separate this out, so we can catch ties if multiple players have fallen on the same tick
@@ -92,6 +95,9 @@ public class Sumo extends Game {
         Player winner = null;
         Bukkit.getScheduler().cancelTask(testFallRegion);
         for (Player player : state.keySet()) {
+            player.setHealth(20);
+            player.setSaturation(20);
+            player.setFoodLevel(20);
             if (getState(player).isAlive) {
                 winner = player;
             }

@@ -14,7 +14,6 @@ import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.scoreboard.DisplaySlot;
 import org.cubeville.cvcombat.CVCombat;
@@ -38,7 +37,7 @@ public class Deathmatch extends TeamSelectorGame {
     private ArrayList<String> indexToLoadoutName = new ArrayList<>();
     private ArrayList<Integer> teamIndexToTpIndex = new ArrayList<>();
 
-    private final ItemStack KIT_SELECTION_ITEM = GameUtils.customItem(Material.CHAINMAIL_CHESTPLATE, "§d§lSelect Kit §7§o(Right Click)");
+    private final ItemStack KIT_SELECTION_ITEM = GameUtils.customHead("eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMmRkMTZhOTU5ZGQ5MmE3MzU4MWJjNjE2NGQzZjgxZDQ2MjQ0YmUyOTdkMjVmYmUwNmNiNTA5NTQ4NTY1NWZkNCJ9fX0=", "§d§lSelect Kit §7§o(Right Click)");
     private final Random random = new Random();
 
 
