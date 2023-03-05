@@ -54,7 +54,7 @@ public class Deathmatch extends TeamSelectorGame {
         addGameVariable("initial-spawn-time", new GameVariableInt("The amount of time before a player respawns into the arena when spawned in for the first time"), 15);
         addGameVariable("respawn-time", new GameVariableInt("The amount of time before a player respawns into the arena"), 10);
         addGameVariable("max-score", new GameVariableInt("The max score a team can get before they win"), 20);
-        addGameVariable("friendly-fire", new GameVariableFlag("Wether players can kill others on their own team or not"), false);
+        addGameVariable("friendly-fire", new GameVariableFlag("Whether players can kill others on their own team or not"), false);
         addGameVariable("duration", new GameVariableInt("The max amount of time a game lasts (in minutes)"), 10);
     }
 
@@ -75,6 +75,13 @@ public class Deathmatch extends TeamSelectorGame {
         if (ds == null) return;
         Bukkit.getScheduler().cancelTask(ds.respawnTimer);
         healPlayer(p);
+        GameUtils.sendMetricToCVStats("pvp_player_result", Map.of(
+            "arena", arena.getName(),
+            "game", "deathmatch",
+            "team", (String) teams.get(ds.team).get("name"),
+            "player", p.getUniqueId().toString(),
+            "result", "leave"
+        ));
         ds.respawnTimer = -1;
         if (isLastOnTeam(p)) {
             teamScores.set(ds.team, new Integer[]{ds.team, -999});
@@ -246,11 +253,12 @@ public class Deathmatch extends TeamSelectorGame {
         respawnIndex++;
         if (respawnIndex >= tps.size()) { respawnIndex = 0; }
         teamIndexToTpIndex.set(pState.team, respawnIndex);
-//        CVStats.getInstance().sendMetric("selected_kit", player, Map.of(
-//                "arena", arena.getName(),
-//                "game", "deathmatch",
-//                "kit", indexToLoadoutName.get(pState.selectedKit)
-//        ));
+        GameUtils.sendMetricToCVStats("spawned_kit", Map.of(
+            "arena", arena.getName(),
+            "game", "deathmatch",
+            "kit", indexToLoadoutName.get(pState.selectedKit),
+            "player", player.getUniqueId().toString()
+        ));
 
         healPlayer(player);
 
@@ -352,10 +360,13 @@ public class Deathmatch extends TeamSelectorGame {
         List<Integer[]> sortedTeams = teamScores.stream().sorted(Comparator.comparingInt(o -> -1 * o[1])).collect(Collectors.toList());
         if (Objects.equals(sortedTeams.get(0)[1], sortedTeams.get(1)[1])) {
             sendMessageToArena("§f§lTie Game!");
+            sendTeamResultMetrics(-1);
         } else {
-            String teamName = (String) teams.get(sortedTeams.get(0)[0]).get("name");
-            ChatColor chatColor = (ChatColor) teams.get(sortedTeams.get(0)[0]).get("chat-color");
+            int winningTeamIndex = sortedTeams.get(0)[0];
+            String teamName = (String) teams.get(winningTeamIndex).get("name");
+            ChatColor chatColor = (ChatColor) teams.get(winningTeamIndex).get("chat-color");
             sendMessageToArena(chatColor + "§l" + teamName + chatColor + "§l has won the game!");
+            sendTeamResultMetrics(winningTeamIndex);
         }
         sendMessageToArena("§b§l--- FINAL RESULTS ---");
         sortedTeams.forEach(pair -> {
@@ -368,6 +379,29 @@ public class Deathmatch extends TeamSelectorGame {
             }
         });
         state.keySet().forEach(this::playerPostGame);
+    }
+
+    private void sendTeamResultMetrics(int winningTeamIndex) {
+        for (int i = 0; i < teams.size(); i++) {
+            String result = i == winningTeamIndex ? "win" : "loss";
+            GameUtils.sendMetricToCVStats("pvp_team_result", Map.of(
+                "arena", arena.getName(),
+                "game", "deathmatch",
+                "team", (String) teams.get(i).get("name"),
+                "result", winningTeamIndex == -1 ? "tie" : result
+            ));
+        }
+        state.keySet().forEach(player -> {
+            DeathmatchState pState = getState(player);
+            String result = pState.team == winningTeamIndex ? "win" : "loss";
+            GameUtils.sendMetricToCVStats("pvp_player_result", Map.of(
+                "arena", arena.getName(),
+                "game", "deathmatch",
+                "team", (String) teams.get(pState.team).get("name"),
+                "player", player.getUniqueId().toString(),
+                "result", winningTeamIndex == -1 ? "tie" : result
+            ));
+        });
     }
 
     @EventHandler
@@ -441,12 +475,12 @@ public class Deathmatch extends TeamSelectorGame {
             hit.removePotionEffect(effect.getType());
         }
 
-//        CVStats.getInstance().sendMetric("pvp_death", hit, Map.of(
-//            "arena", arena.getName(),
-//            "game", "deathmatch",
-//            "kit", indexToLoadoutName.get(hitState.selectedKit),
-//            "killedBy", damager.getUniqueId().toString()
-//        ));
+        GameUtils.sendMetricToCVStats("pvp_death", Map.of(
+            "arena", arena.getName(),
+            "game", "deathmatch",
+            "kit", indexToLoadoutName.get(hitState.selectedKit),
+            "player", hit.getUniqueId().toString()
+        ));
 
         if (killerState == null || killer == null) {
             // if we can't find a killer, subtract 1 from the score of the team
@@ -456,13 +490,12 @@ public class Deathmatch extends TeamSelectorGame {
             // if we have a killer, add one to their team's total
             killerState.kills += 1;
             teamScores.set(killerState.team, new Integer[]{ killerState.team, teamScores.get(killerState.team)[1] + 1 });
-
-//            CVStats.getInstance().sendMetric("pvp_kill", damager, Map.of(
-//                "arena", arena.getName(),
-//                "game", "deathmatch",
-//                "kit", indexToLoadoutName.get(damagerState.selectedKit),
-//                "killed", hit.getUniqueId().toString()
-//            ));
+            GameUtils.sendMetricToCVStats("pvp_kill", Map.of(
+                "arena", arena.getName(),
+                "game", "deathmatch",
+                "kit", indexToLoadoutName.get(killerState.selectedKit),
+                "player", killer.getUniqueId().toString()
+            ));
 
             ChatColor killerChatColor = (ChatColor) teams.get(killerState.team).get("chat-color");
             deathMessage = deathMessage.replaceAll(killer.getDisplayName(), killerChatColor + killer.getDisplayName() + "§e");

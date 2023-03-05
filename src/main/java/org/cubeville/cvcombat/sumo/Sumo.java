@@ -18,6 +18,7 @@ import org.cubeville.cvgames.vartypes.GameVariableLocation;
 import org.cubeville.cvgames.vartypes.GameVariableRegion;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public class Sumo extends Game {
@@ -43,7 +44,7 @@ public class Sumo extends Game {
         if (knockbackLevel != 0) {
             knockbackItem = new ItemStack(Material.BRICK);
             ItemMeta knockbackItemMeta = knockbackItem.getItemMeta();
-            knockbackItemMeta.setDisplayName("§bSumo Knockback Apple");
+            knockbackItemMeta.setDisplayName("§bSumo Knockback Brick");
             knockbackItemMeta.addEnchant(Enchantment.KNOCKBACK, knockbackLevel, true);
             knockbackItem.setItemMeta(knockbackItemMeta);
         }
@@ -85,6 +86,13 @@ public class Sumo extends Game {
 
     @Override
     public void onPlayerLeave(Player p) {
+        GameUtils.sendMetricToCVStats("pvp_player_result", Map.of(
+            "arena", arena.getName(),
+            "game", "sumo",
+            "team", "none",
+            "player", p.getUniqueId().toString(),
+            "result", "leave"
+        ));
         state.remove(p);
         GameUtils.messagePlayerList(state.keySet(), "§d" + p.getName() + " has left the game!");
         testFinishGame();
@@ -106,6 +114,22 @@ public class Sumo extends Game {
             GameUtils.messagePlayerList(state.keySet(), "§7§lYou tied!");
         } else {
             GameUtils.messagePlayerList(state.keySet(), "§7§l" + winner.getName() + " has won!");
+        }
+
+        for (Player player : state.keySet()) {
+            String result;
+            if (winner == null) {
+                result = "tie"; // idc about figuring out who tied for this ;-;
+            } else {
+                result = player.equals(winner) ? "win" : "loss";
+            }
+            GameUtils.sendMetricToCVStats("pvp_player_result", Map.of(
+                "arena", arena.getName(),
+                "game", "sumo",
+                "team", "none",
+                "player", player.getUniqueId().toString(),
+                "result", result
+            ));
         }
     }
 
