@@ -6,7 +6,7 @@
 
     <groupId>org.cubeville</groupId>
     <artifactId>CVCombat</artifactId>
-    <version>v1.0.15</version>
+    <version>v1.0.16</version>
     <packaging>jar</packaging>
 
     <name>CVCombat</name>
@@ -53,18 +53,12 @@
         <dependency>
             <groupId>com.github.ptown16</groupId>
             <artifactId>CVGames</artifactId>
-            <version>v1.0.15</version>
+            <version>ce5f5a564d</version>
         </dependency>
         <dependency>
             <groupId>org.cubeville</groupId>
             <artifactId>CVLoadouts</artifactId>
             <version>1.18</version>
-            <scope>compile</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.jetbrains</groupId>
-            <artifactId>annotations</artifactId>
-            <version>RELEASE</version>
             <scope>compile</scope>
         </dependency>
     </dependencies>
