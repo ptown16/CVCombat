@@ -1,16 +1,14 @@
 package org.cubeville.cvcombat.deathmatch;
 
+import org.cubeville.cvcombat.models.PvPPlayerState;
 import org.cubeville.cvgames.models.PlayerState;
 
-public class DeathmatchState extends PlayerState {
-    int team;
+public class DeathmatchState extends PvPPlayerState {
     int kills = 0;
     int deaths = 0;
-    Integer selectedKit;
-    int respawnTimer = -1;
 
     public DeathmatchState(int team) {
-        this.team = team;
+        super(team);
     }
 
     @Override

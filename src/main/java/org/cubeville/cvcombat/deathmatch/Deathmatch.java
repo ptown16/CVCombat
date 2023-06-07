@@ -17,6 +17,8 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.scoreboard.DisplaySlot;
 import org.cubeville.cvcombat.CVCombat;
+import org.cubeville.cvcombat.models.PvPGameOptions;
+import org.cubeville.cvcombat.models.PvPTeamSelectorGame;
 import org.cubeville.cvgames.models.TeamSelectorGame;
 import org.cubeville.cvgames.utils.GameUtils;
 import org.cubeville.cvgames.vartypes.*;
@@ -25,7 +27,7 @@ import org.cubeville.cvloadouts.CVLoadouts;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class Deathmatch extends TeamSelectorGame {
+public class Deathmatch extends PvPTeamSelectorGame {
 
     private String error;
     private int scoreboardSecondUpdater;
@@ -43,19 +45,13 @@ public class Deathmatch extends TeamSelectorGame {
 
     public Deathmatch(String id, String arenaName) {
         super(id, arenaName);
-        addGameVariableObjectList("kits", new HashMap<>(){{
-            put("item", new GameVariableItem("The item used to represent the kit in the GUI"));
-            put("loadout", new GameVariableString("The loadout used for the kit"));
-        }}, "The loadout kits that can be used in this arena");
-        addGameVariableTeamsList(new HashMap<>(){{
-            put("loadout-team", new GameVariableString("The team used for loadouts"));
-            put("tps", new GameVariableList<>(GameVariableLocation.class, "The locations that players on this team will spawn in at"));
-        }});
-        addGameVariable("initial-spawn-time", new GameVariableInt("The amount of time before a player respawns into the arena when spawned in for the first time"), 15);
-        addGameVariable("respawn-time", new GameVariableInt("The amount of time before a player respawns into the arena"), 10);
-        addGameVariable("max-score", new GameVariableInt("The max score a team can get before they win"), 20);
-        addGameVariable("friendly-fire", new GameVariableFlag("Whether players can kill others on their own team or not"), false);
-        addGameVariable("duration", new GameVariableInt("The max amount of time a game lasts (in minutes)"), 10);
+        addGameVariable("tdm-max-score", new GameVariableInt("The max score a team can get before they win"), 20);
+        addGameVariable("tdm-duration", new GameVariableInt("The max amount of time a game lasts (in minutes)"), 10);
+    }
+
+    public PvPGameOptions getOptions() {
+        PvPGameOptions options = new PvPGameOptions();
+        return options;
     }
 
     @Override
@@ -104,49 +100,30 @@ public class Deathmatch extends TeamSelectorGame {
 
     @Override
     public void onGameStart(List<Set<Player>> playerTeamMap) {
-        teams = (List<HashMap<String, Object>>) getVariable("teams");
-        hasSpawned = false;
-
-        List<HashMap<String, Object>> kits = (List<HashMap<String, Object>>) getVariable("kits");
-        for (HashMap<String, Object> kit : kits) {
-            indexToLoadoutName.add((String) kit.get("loadout"));
-        }
-
+        super.onPvPGameStart(playerTeamMap);
         for (int i = 0; i < teams.size(); i++) {
             HashMap<String, Object> team = teams.get(i);
             Set<Player> teamPlayers = playerTeamMap.get(i);
 
-            if (teamPlayers == null) { continue; }
+            if (teamPlayers == null) {
+                continue;
+            }
 
-            String teamName = (String) team.get("name");
             ChatColor chatColor = (ChatColor) team.get("chat-color");
-
             teamScores.add(new Integer[]{ i, 0 });
-            teamIndexToTpIndex.add(0);
+
 
             for (Player player : teamPlayers) {
                 state.put(player, new DeathmatchState(i));
+                player.sendMessage(chatColor + "First to " + getVariable("tdm-max-score") + " points wins!");
 
-                Location tpLoc = (Location) getVariable("spectator-spawn");
-                if (!tpLoc.getChunk().isLoaded()) {
-                    tpLoc.getChunk().load();
-                }
-
-                if (teams.size() > 1) {
-                    player.sendMessage(chatColor + "You are on §l" + teamName + chatColor + "!");
-                } else {
-                    player.sendMessage(chatColor + "It's a free for all!");
-                }
-                player.sendMessage(chatColor + "First to " + getVariable("max-score") + " points wins!");
-                startPlayerRespawn(player, (int) getVariable("initial-spawn-time"));
-                // force open the inventory, but only on the first spawn in
-                player.openInventory(generateKitInventory(player));
             }
         }
         startTime = System.currentTimeMillis();
 
+
         // add the initial spawn time to the duration
-        long duration = ((((int) getVariable("duration")) * 60L) + ((int) getVariable("initial-spawn-time"))) * 1000L;
+        long duration = ((((int) getVariable("tdm-duration")) * 60L) + ((int) getVariable("initial-spawn-time"))) * 1000L;
         scoreboardSecondUpdater = Bukkit.getScheduler().scheduleSyncRepeatingTask(CVCombat.getInstance(), () -> {
             currentTime = duration - (System.currentTimeMillis() - startTime);
             if (currentTime > 0) {
@@ -157,68 +134,9 @@ public class Deathmatch extends TeamSelectorGame {
         }, 0L, 20L);
     }
 
-    private void applyLoadoutFromState(Player p, DeathmatchState pState) {
-        if (pState.selectedKit == null) {
-            // choose a random kit for the player if they havent selected anything
-            pState.selectedKit = random.nextInt(indexToLoadoutName.size());
-        }
-        CVLoadouts.getInstance().applyLoadoutToPlayer(p, indexToLoadoutName.get(pState.selectedKit), List.of((String) teams.get(pState.team).get("loadout-team")));
-    }
-
-    private void startPlayerRespawn(Player p, int respawnTime) {
-        DeathmatchState pState = getState(p);
-        if (pState == null) return;
-        healPlayer(p);
-        p.getInventory().clear();
-        addSpectator(p);
-        if (pState.selectedKit != null) {
-            applyLoadoutFromState(p, pState);
-        }
-        p.getInventory().setItem(8, KIT_SELECTION_ITEM);
-        pState.respawnTimer = Bukkit.getScheduler().scheduleSyncRepeatingTask(CVCombat.getInstance(), new Runnable() {
-            boolean firstRun = true;
-            int rsTime = respawnTime;
-            @Override
-            public void run() {
-                if (rsTime <= 0) {
-                    spawnPlayerIntoGame(p);
-                    Bukkit.getScheduler().cancelTask(pState.respawnTimer);
-                    pState.respawnTimer = -1;
-                    // make sure the player is not on fire and has full health when tpd in game
-                } else if (rsTime <= 3 || firstRun) {
-                    firstRun = false;
-                    p.playSound(p.getLocation(), Sound.BLOCK_TRIPWIRE_CLICK_ON, 3.0F, 1.4F);
-                    String spawnVerb = hasSpawned ? "Respawning" : "Spawning";
-                    p.sendMessage("§b" + spawnVerb + " in " + rsTime + "...");
-                }
-                rsTime--;
-            }
-        }, 0L, 20L);
-    }
-
-    private String getKitInventoryName() {
+    @Override
+    protected String getKitInventoryName() {
         return "§lDeathmatch on " + arena.getName();
-    }
-
-    private Inventory generateKitInventory(Player p) {
-        if (getState(p) == null) return null;
-        List<HashMap<String, Object>> kits = (List<HashMap<String, Object>>) getVariable("kits");
-        int invSize = (2 + (kits.size() / 9)) * 9;
-        Inventory inv = Bukkit.createInventory(p, invSize, getKitInventoryName());
-        for (int i = 0; i < kits.size(); i++) {
-            inv.setItem(i, (ItemStack) kits.get(i).get("item"));
-        }
-
-        for (int i = invSize - 9; i < invSize; i++) {
-            if (i % 9 == 4) {
-                DeathmatchState ds = getState(p);
-                if (ds.selectedKit == null) continue;
-                inv.setItem(i, (ItemStack) kits.get(ds.selectedKit).get("item"));
-            } else {
-                inv.setItem(i, new ItemStack(Material.GRAY_STAINED_GLASS_PANE));
-            }
-        }
-        return inv;
     }
 
     @EventHandler
@@ -240,39 +158,6 @@ public class Deathmatch extends TeamSelectorGame {
         applyLoadoutFromState(clicker, clickerState);
         clicker.getInventory().setItem(8, KIT_SELECTION_ITEM);
         event.getWhoClicked().closeInventory();
-    }
-
-    public void spawnPlayerIntoGame(Player player) {
-        DeathmatchState pState = (DeathmatchState) state.get(player);
-        int respawnIndex = teamIndexToTpIndex.get(pState.team);
-        List<Location> tps = (List<Location>) teams.get(pState.team).get("tps");
-        player.teleport(tps.get(respawnIndex));
-        removeSpectator(player);
-        applyLoadoutFromState(player, pState);
-        player.closeInventory();
-        respawnIndex++;
-        if (respawnIndex >= tps.size()) { respawnIndex = 0; }
-        teamIndexToTpIndex.set(pState.team, respawnIndex);
-        GameUtils.sendMetricToCVStats("spawned_kit", Map.of(
-            "arena", arena.getName(),
-            "game", "deathmatch",
-            "kit", indexToLoadoutName.get(pState.selectedKit),
-            "player", player.getUniqueId().toString()
-        ));
-
-        healPlayer(player);
-
-        hasSpawned = true;
-    }
-
-    private void healPlayer(Player player) {
-        for (PotionEffect effect : player.getActivePotionEffects()) {
-            player.removePotionEffect(effect.getType());
-        }
-        player.setFireTicks(0);
-        player.setHealth(20);
-        player.setFoodLevel(20);
-        player.setSaturation(20);
     }
 
     @Override
@@ -503,7 +388,7 @@ public class Deathmatch extends TeamSelectorGame {
             sendMessageToArena(deathMessage);
 
             // we only need to check to end the game if there is a killer
-            int maxScore = (int) getVariable("max-score");
+            int maxScore = (int) getVariable("tdm-max-score");
             if (teams.size() > 1) {
                 if (teamScores.get(killerState.team)[1] >= maxScore) {
                     finishGame();
