@@ -17,7 +17,6 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.scoreboard.DisplaySlot;
 import org.cubeville.cvcombat.CVCombat;
-import org.cubeville.cvcombat.deathmatch.DeathmatchState;
 import org.cubeville.cvgames.enums.ArenaStatus;
 import org.cubeville.cvgames.models.BaseGame;
 import org.cubeville.cvgames.models.TeamSelectorGame;
@@ -31,8 +30,8 @@ import java.util.stream.Collectors;
 public abstract class PvPTeamSelectorGame extends TeamSelectorGame {
 
     protected String error;
-    protected int scoreboardSecondUpdater;
     protected List<HashMap<String, Object>> teams;
+    protected List<Set<Player>> teamPlayers = new ArrayList<Set<Player>>();
     protected boolean hasSpawned = false;
     protected ArrayList<String> indexToLoadoutName = new ArrayList<>();
     protected ArrayList<Integer> teamIndexToTpIndex = new ArrayList<>();
@@ -53,11 +52,15 @@ public abstract class PvPTeamSelectorGame extends TeamSelectorGame {
                 put("loadout", new GameVariableString("The loadout used for the kit"));
             }}, "The loadout kits that can be used in this arena");
         }
+        addTeamVariables(teamVariables);
         addGameVariableTeamsList(teamVariables);
     }
     public abstract PvPGameOptions getOptions();
 
     public abstract List<Integer[]> getSortedTeams();
+
+    public void addTeamVariables(HashMap<String, GameVariable> variableMap) {
+    }
 
     protected boolean usesDefaultKits() {
         if (getOptions().getKitsEnabled() && getOptions().getDefaultKits()) {
@@ -80,6 +83,7 @@ public abstract class PvPTeamSelectorGame extends TeamSelectorGame {
         for (int i = 0; i < teams.size(); i++) {
             HashMap<String, Object> team = teams.get(i);
             Set<Player> teamPlayers = playerTeamMap.get(i);
+            this.teamPlayers.add(teamPlayers);
 
             if (teamPlayers == null) { continue; }
 
@@ -123,22 +127,20 @@ public abstract class PvPTeamSelectorGame extends TeamSelectorGame {
                 "result", "leave"
         ));
         ps.respawnTimer = -1;
+        teamPlayers.get(getState(p).team).remove(p);
         state.remove(p);
         p.getScoreboard().clearSlot(DisplaySlot.SIDEBAR);
     }
 
     public void onPvPGameFinish() {
         for (Player player : state.keySet()) {
-            DeathmatchState ds = (DeathmatchState) state.get(player);
-            if (state.containsKey(player) && ds.respawnTimer != -1) {
-                Bukkit.getScheduler().cancelTask(ds.respawnTimer);
-                ds.respawnTimer = -1;
+            PvPPlayerState ps = (PvPPlayerState) state.get(player);
+            if (state.containsKey(player) && ps.respawnTimer != -1) {
+                Bukkit.getScheduler().cancelTask(ps.respawnTimer);
+                ps.respawnTimer = -1;
             }
             healPlayer(player);
         }
-
-        Bukkit.getScheduler().cancelTask(scoreboardSecondUpdater);
-        scoreboardSecondUpdater = -1;
 
         if (error != null) {
             GameUtils.messagePlayerList(state.keySet(), "§c§lERROR: §c" + error);
@@ -158,6 +160,7 @@ public abstract class PvPTeamSelectorGame extends TeamSelectorGame {
         error = null;
         indexToLoadoutName.clear();
         teamIndexToTpIndex.clear();
+        teamPlayers.clear();
     }
 
     @Override
@@ -169,7 +172,7 @@ public abstract class PvPTeamSelectorGame extends TeamSelectorGame {
         PvPPlayerState ps = getState(p);
         if (ps == null) return false;
         for (Player player : state.keySet()) {
-            if (!player.equals(p) && ((DeathmatchState) state.get(player)).team == ps.team) {
+            if (!player.equals(p) && ((PvPPlayerState) state.get(player)).team == ps.team) {
                 return false;
             }
         }

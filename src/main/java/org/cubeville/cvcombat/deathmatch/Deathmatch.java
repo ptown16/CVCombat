@@ -24,6 +24,8 @@ public class Deathmatch extends PvPTeamSelectorGame {
     private final ArrayList<Integer[]> teamScores = new ArrayList<>();
     private long startTime = 0;
     private long currentTime;
+    protected int scoreboardSecondUpdater;
+
 
 
     public Deathmatch(String id, String arenaName) {
@@ -49,11 +51,11 @@ public class Deathmatch extends PvPTeamSelectorGame {
 
     @Override
     public void onPlayerLeave(Player p) {
-        super.onPvPPlayerLeave(p);
         DeathmatchState ds = getState(p);
         if (isLastOnTeam(p)) {
             teamScores.set(ds.team, new Integer[]{ds.team, -999});
         }
+        super.onPvPPlayerLeave(p);
         if (state.size() <= 1 || teamScores.stream().filter(score -> score[1] != -999).count() <= 1) finishGame();
     }
     @Override
@@ -99,7 +101,8 @@ public class Deathmatch extends PvPTeamSelectorGame {
 
     @Override
     public void onGameFinish() {
-        super.onPvPGameFinish();
+        Bukkit.getScheduler().cancelTask(scoreboardSecondUpdater);
+        scoreboardSecondUpdater = -1;
         sendMessageToArena("§b§l--- FINAL RESULTS ---");
         getSortedTeams().forEach(pair -> {
             String teamName = (String) teams.get(pair[0]).get("name");
@@ -107,29 +110,26 @@ public class Deathmatch extends PvPTeamSelectorGame {
             if (pair[1] == -999) {
                 sendMessageToArena(chatColor + teamName + "§f: §cLeft Game");
             } else {
-                sendMessageToArena(chatColor + teamName + "§f: " + pair[1] + " kills");
+                sendMessageToArena(chatColor + teamName + "§f: §a§l" + pair[1] + " §akills");
             }
+            teamPlayers.get(pair[0]).stream().sorted(Comparator.comparingInt(o -> -1 * getState(o).getSortingValue())).forEach(p -> {
+                String message = "§f- " + chatColor + p.getDisplayName() + " §a🗡§f";
+                DeathmatchState ds = getState(p);
+                message = message + ds.kills + " §c❌§f";
+                message = message + ds.deaths + " §e⚖§f";
+                if (ds.kills == 0) {
+                    message = message + "0.00";
+                } else if (ds.deaths == 0) {
+                    message = message + ds.kills + ".00";
+                } else {
+                    message = message + String.format("%.2f", ((float) ds.kills / (float) ds.deaths));
+                }
+                sendMessageToArena(message);
+                p.getScoreboard().clearSlot(DisplaySlot.SIDEBAR);
+            });
         });
-        state.keySet().forEach(this::playerPostGame);
+        super.onPvPGameFinish();
         teamScores.clear();
-    }
-
-    private void playerPostGame(Player p) {
-        sendStatistics(p);
-        p.getScoreboard().clearSlot(DisplaySlot.SIDEBAR);
-    }
-
-    private void sendStatistics(Player player) {
-        DeathmatchState ds = getState(player);
-        player.sendMessage("§7Kills: §f" + ds.kills);
-        player.sendMessage("§7Deaths: §f" + ds.deaths);
-        if (ds.kills == 0) {
-            player.sendMessage("§7K/D Ratio: §f0.00");
-        } else if (ds.deaths == 0) {
-            player.sendMessage("§7K/D Ratio: §f" + ds.kills + ".00");
-        } else {
-            player.sendMessage("§7K/D Ratio: §f" + String.format("%.2f", ((float) ds.kills / (float) ds.deaths)));
-        }
     }
 
     @EventHandler
