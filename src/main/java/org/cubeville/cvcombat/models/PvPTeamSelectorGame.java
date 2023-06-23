@@ -6,11 +6,19 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Projectile;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
+import org.bukkit.scoreboard.DisplaySlot;
 import org.cubeville.cvcombat.CVCombat;
 import org.cubeville.cvcombat.deathmatch.DeathmatchState;
+import org.cubeville.cvgames.enums.ArenaStatus;
 import org.cubeville.cvgames.models.BaseGame;
 import org.cubeville.cvgames.models.TeamSelectorGame;
 import org.cubeville.cvgames.utils.GameUtils;
@@ -18,20 +26,19 @@ import org.cubeville.cvgames.vartypes.*;
 import org.cubeville.cvloadouts.CVLoadouts;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 public abstract class PvPTeamSelectorGame extends TeamSelectorGame {
 
     protected String error;
     protected int scoreboardSecondUpdater;
     protected List<HashMap<String, Object>> teams;
-    protected long startTime = 0;
-    protected long currentTime;
     protected boolean hasSpawned = false;
     protected ArrayList<String> indexToLoadoutName = new ArrayList<>();
     protected ArrayList<Integer> teamIndexToTpIndex = new ArrayList<>();
-
     private final ItemStack KIT_SELECTION_ITEM = GameUtils.customHead("eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMmRkMTZhOTU5ZGQ5MmE3MzU4MWJjNjE2NGQzZjgxZDQ2MjQ0YmUyOTdkMjVmYmUwNmNiNTA5NTQ4NTY1NWZkNCJ9fX0=", "§d§lSelect Kit §7§o(Right Click)");
     private final Random random = new Random();
+
     public PvPTeamSelectorGame(String id, String arenaName) {
         super(id, arenaName);
         addGameVariable("friendly-fire", new GameVariableFlag("Whether players can kill others on their own team or not"), false);
@@ -50,6 +57,8 @@ public abstract class PvPTeamSelectorGame extends TeamSelectorGame {
     }
     public abstract PvPGameOptions getOptions();
 
+    public abstract List<Integer[]> getSortedTeams();
+
     protected boolean usesDefaultKits() {
         if (getOptions().getKitsEnabled() && getOptions().getDefaultKits()) {
             return true;
@@ -60,7 +69,6 @@ public abstract class PvPTeamSelectorGame extends TeamSelectorGame {
     }
 
     public void onPvPGameStart(List<Set<Player>> playerTeamMap) {
-        teams = (List<HashMap<String, Object>>) getVariable("teams");
         hasSpawned = false;
         if (usesDefaultKits()) {
             List<HashMap<String, Object>> kits = (List<HashMap<String, Object>>) getVariable("kits");
@@ -102,6 +110,71 @@ public abstract class PvPTeamSelectorGame extends TeamSelectorGame {
     @Override
     protected abstract PvPPlayerState getState(Player player);
 
+    public void onPvPPlayerLeave(Player p) {
+        PvPPlayerState ps = getState(p);
+        if (ps == null) return;
+        Bukkit.getScheduler().cancelTask(ps.respawnTimer);
+        healPlayer(p);
+        GameUtils.sendMetricToCVStats("pvp_player_result", Map.of(
+                "arena", arena.getName(),
+                "game", getId(),
+                "team", (String) teams.get(ps.team).get("name"),
+                "player", p.getUniqueId().toString(),
+                "result", "leave"
+        ));
+        ps.respawnTimer = -1;
+        state.remove(p);
+        p.getScoreboard().clearSlot(DisplaySlot.SIDEBAR);
+    }
+
+    public void onPvPGameFinish() {
+        for (Player player : state.keySet()) {
+            DeathmatchState ds = (DeathmatchState) state.get(player);
+            if (state.containsKey(player) && ds.respawnTimer != -1) {
+                Bukkit.getScheduler().cancelTask(ds.respawnTimer);
+                ds.respawnTimer = -1;
+            }
+            healPlayer(player);
+        }
+
+        Bukkit.getScheduler().cancelTask(scoreboardSecondUpdater);
+        scoreboardSecondUpdater = -1;
+
+        if (error != null) {
+            GameUtils.messagePlayerList(state.keySet(), "§c§lERROR: §c" + error);
+        } else {
+            List<Integer[]> sortedTeams = getSortedTeams();
+            if (Objects.equals(sortedTeams.get(0)[1], sortedTeams.get(1)[1])) {
+                sendMessageToArena("§f§lTie Game!");
+                sendTeamResultMetrics(-1);
+            } else {
+                int winningTeamIndex = sortedTeams.get(0)[0];
+                String teamName = (String) teams.get(winningTeamIndex).get("name");
+                ChatColor chatColor = (ChatColor) teams.get(winningTeamIndex).get("chat-color");
+                sendMessageToArena(chatColor + "§l" + teamName + chatColor + "§l has won the game!");
+                sendTeamResultMetrics(winningTeamIndex);
+            }
+        }
+        error = null;
+        indexToLoadoutName.clear();
+        teamIndexToTpIndex.clear();
+    }
+
+    @Override
+    public int getPlayerTeamIndex(Player player) {
+        return Objects.requireNonNull(getState(player)).team;
+    }
+
+    protected boolean isLastOnTeam(Player p) {
+        PvPPlayerState ps = getState(p);
+        if (ps == null) return false;
+        for (Player player : state.keySet()) {
+            if (!player.equals(p) && ((DeathmatchState) state.get(player)).team == ps.team) {
+                return false;
+            }
+        }
+        return true;
+    }
     protected void startPlayerRespawn(Player p, int respawnTime) {
         PvPPlayerState pState = getState(p);
         if (pState == null) return;
@@ -146,7 +219,7 @@ public abstract class PvPTeamSelectorGame extends TeamSelectorGame {
         teamIndexToTpIndex.set(pState.team, respawnIndex);
         GameUtils.sendMetricToCVStats("spawned_kit", Map.of(
                 "arena", arena.getName(),
-                "game", "deathmatch",
+                "game", getId(),
                 "kit", indexToLoadoutName.get(pState.selectedKit),
                 "player", player.getUniqueId().toString()
         ));
@@ -154,6 +227,27 @@ public abstract class PvPTeamSelectorGame extends TeamSelectorGame {
         healPlayer(player);
 
         hasSpawned = true;
+    }
+
+    @EventHandler
+    public void onInventoryClick(InventoryClickEvent event) {
+        if (!event.getView().getTitle().equals(getKitInventoryName())) return;
+        if (!(event.getWhoClicked() instanceof Player)) return;
+        Player clicker = (Player) event.getWhoClicked();
+        PvPPlayerState clickerState = getState(clicker);
+        if (clickerState == null) return;
+
+        // player must be currently selecting a kit, cancel all clicks and handle from there
+        event.setCancelled(true);
+
+        // don't handle a click unless it is on one of the kits
+        if (event.getSlot() >= indexToLoadoutName.size() || event.getSlot() < 0) return;
+        clickerState.selectedKit = event.getSlot();
+
+        // apply the loadout to the player, so they can see what the loadout contains
+        applyLoadoutFromState(clicker, clickerState);
+        clicker.getInventory().setItem(8, KIT_SELECTION_ITEM);
+        event.getWhoClicked().closeInventory();
     }
 
     protected void applyLoadoutFromState(Player p, PvPPlayerState pState) {
@@ -178,7 +272,9 @@ public abstract class PvPTeamSelectorGame extends TeamSelectorGame {
         if (getState(p) == null) return null;
         List<HashMap<String, Object>> kits = (List<HashMap<String, Object>>) getVariable("kits");
         int invSize = (2 + (kits.size() / 9)) * 9;
+        Bukkit.getLogger().info("" + p + " " + invSize + " " + getKitInventoryName());
         Inventory inv = Bukkit.createInventory(p, invSize, getKitInventoryName());
+        Bukkit.getLogger().info("" + inv);
         for (int i = 0; i < kits.size(); i++) {
             inv.setItem(i, (ItemStack) kits.get(i).get("item"));
         }
@@ -197,6 +293,132 @@ public abstract class PvPTeamSelectorGame extends TeamSelectorGame {
 
     protected String getKitInventoryName() {
         return "Kits";
+    }
+
+    public void onPvPPlayerDamage(EntityDamageByEntityEvent e) {
+        // if there's friendly fire, we don't need to check any of this
+        if ((Boolean) getVariable("friendly-fire")) return;
+
+        // check if the hit is within the game
+        if (!(e.getEntity() instanceof Player)) return;
+        Player damager;
+        if (e.getDamager() instanceof Player) {
+            damager = (Player) e.getDamager();
+        } else if (e.getDamager() instanceof Projectile) {
+            Projectile arrow = (Projectile) e.getDamager();
+            if (!(arrow.getShooter() instanceof Player)) return;
+            damager = (Player) arrow.getShooter();
+        } else {
+            return;
+        }
+        PvPPlayerState damagerState = getState(damager);
+        Player hit = (Player) e.getEntity();
+        PvPPlayerState hitState = getState(hit);
+        if (damagerState == null || hitState == null) return;
+
+        // prevent friendly fire, if applicable
+        if (!((Boolean) getVariable("friendly-fire")) && damagerState.team == hitState.team) {
+            e.getDamager().sendMessage("§cDon't hit your teammates!");
+            e.setCancelled(true);
+        }
+    }
+
+    public void onPvPPlayerDeath(PlayerDeathEvent e) {
+        Player killer = e.getEntity().getKiller();
+        PvPPlayerState killerState = getState(killer);
+        Player hit = e.getEntity();
+        PvPPlayerState hitState = getState(hit);
+
+        // make sure the player drops nothing on death
+        e.setKeepInventory(true);
+        e.getDrops().clear();
+        e.setDroppedExp(0);
+        hit.getInventory().clear();
+
+        hitState.deaths += 1;
+        ChatColor hitChatColor = (ChatColor) teams.get(hitState.team).get("chat-color");
+        // grab a copy of the death message and set the server-wide death message to null
+        String deathMessage = "§e" + e.getDeathMessage();
+        e.setDeathMessage(null);
+        deathMessage = deathMessage.replaceAll(hit.getDisplayName(), hitChatColor + hit.getDisplayName() + "§e");
+
+        // remove all potion fx from the player who died
+        for (PotionEffect effect : hit.getActivePotionEffects()) {
+            hit.removePotionEffect(effect.getType());
+        }
+
+        GameUtils.sendMetricToCVStats("pvp_death", Map.of(
+                "arena", arena.getName(),
+                "game", getId(),
+                "kit", indexToLoadoutName.get(hitState.selectedKit),
+                "player", hit.getUniqueId().toString()
+        ));
+
+        if (killerState == null || killer == null) {
+            // if we can't find a killer, just send the message
+            sendMessageToArena(deathMessage);
+        } else {
+            // if we have a killer, there's more to do
+            killerState.kills += 1;
+            GameUtils.sendMetricToCVStats("pvp_kill", Map.of(
+                    "arena", arena.getName(),
+                    "game", getId(),
+                    "kit", indexToLoadoutName.get(killerState.selectedKit),
+                    "player", killer.getUniqueId().toString()
+            ));
+
+            ChatColor killerChatColor = (ChatColor) teams.get(killerState.team).get("chat-color");
+            deathMessage = deathMessage.replaceAll(killer.getDisplayName(), killerChatColor + killer.getDisplayName() + "§e");
+
+            sendMessageToArena(deathMessage);
+        }
+
+        startPlayerRespawn(hit, (int) getVariable("respawn-time"));
+
+    }
+
+    @EventHandler
+    public void onPlayerInteract(PlayerInteractEvent e) {
+        // is the player holding the kit selection item?
+        if (e.getItem() == null) return;
+        if (!e.getItem().isSimilar(KIT_SELECTION_ITEM)) return;
+
+        // is the player in the game?
+        if (getState(e.getPlayer()) == null) return;
+
+        e.setCancelled(true);
+        e.getPlayer().openInventory(generateKitInventory(e.getPlayer()));
+    }
+
+    protected void teleportOut(Player player) {
+        if (getArena().getStatus() == ArenaStatus.HOSTING) {
+            player.teleport((Location) getVariable("lobby"));
+        } else {
+            player.teleport((Location) getVariable("exit"));
+        }
+    }
+
+    protected void sendTeamResultMetrics(int winningTeamIndex) {
+        for (int i = 0; i < teams.size(); i++) {
+            String result = i == winningTeamIndex ? "win" : "loss";
+            GameUtils.sendMetricToCVStats("pvp_team_result", Map.of(
+                    "arena", arena.getName(),
+                    "game", getId(),
+                    "team", (String) teams.get(i).get("name"),
+                    "result", winningTeamIndex == -1 ? "tie" : result
+            ));
+        }
+        state.keySet().forEach(player -> {
+            PvPPlayerState pState = getState(player);
+            String result = pState.team == winningTeamIndex ? "win" : "loss";
+            GameUtils.sendMetricToCVStats("pvp_player_result", Map.of(
+                    "arena", arena.getName(),
+                    "game", getId(),
+                    "team", (String) teams.get(pState.team).get("name"),
+                    "player", player.getUniqueId().toString(),
+                    "result", winningTeamIndex == -1 ? "tie" : result
+            ));
+        });
     }
 
 }
