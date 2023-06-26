@@ -74,7 +74,7 @@ public class CaptureTheFlag extends PvPTeamSelectorGame {
 
             for (Player player : teamPlayers) {
                 state.put(player, new CaptureTheFlagState(i));
-                player.sendMessage(chatColor + "First to " + getVariable("ctf-max-score") + " flags captured wins!");
+                player.sendMessage(chatColor + "First to " + getVariable("ctf-max-score") + " " + flagString((Integer) getVariable("ctf-max-score")) + " captured wins!");
             }
         }
         super.onPvPGameStart(playerTeamMap);
@@ -82,11 +82,11 @@ public class CaptureTheFlag extends PvPTeamSelectorGame {
         flagCaptureChecker = Bukkit.getScheduler().scheduleSyncRepeatingTask(CVCombat.getInstance(), () -> {
             for (Player player : state.keySet()) {
                 CaptureTheFlagState cs = getState(player);
-                if (cs.heldFlag == -1) return;
+                if (cs.heldFlag == -1) continue;
                 if (player.getLocation().distance(((Block) teams.get(cs.team).get("flag-block")).getLocation()) <= 5) {
                     if (!teamFlags.get(cs.team)) {
                         player.sendTitle("§cUnable to capture!", "§fYour team doesn't have your flag!", 0, 20, 5);
-                        return;
+                        continue;
                     }
                     HashMap<String, Object> team = teams.get(cs.team);
                     ChatColor color = (ChatColor) team.get("chat-color");
@@ -98,7 +98,9 @@ public class CaptureTheFlag extends PvPTeamSelectorGame {
                     getState(player).flags++;
                     cs.heldFlag = -1;
                     player.setGlowing(false);
-                    sendTitleToArena(color + name + " flag has been captured!", "§fThey have §a" + teamScores.get(cs.team)[1] + "§f flags captured!", 10, 60, 10);
+                    String flagString = flagString(teamScores.get(cs.team)[1]);
+                    sendTitleToArena(color + name + " captured a flag!", "§fThey have §a" + teamScores.get(cs.team)[1] + "§f " + flagString + " captured!", 10, 60, 10);
+                    sendMessageToArena(color + name + " §fcaptured a flag! They have §a" + teamScores.get(cs.team)[1] + "§f " + flagString + " captured!" );
                     displayScoreboard();
                     if (teamScores.get(cs.team)[1] >= (Integer) getVariable("ctf-max-score")) {
                         Bukkit.getScheduler().scheduleSyncDelayedTask(CVCombat.getInstance(), this::finishGame, 1L);
@@ -144,7 +146,7 @@ public class CaptureTheFlag extends PvPTeamSelectorGame {
             if (pair[1] == -999) {
                 sendMessageToArena(chatColor + teamName + "§f: §cLeft Game");
             } else {
-                sendMessageToArena(chatColor + teamName + "§f: §a§l" + pair[1] + " §flags");
+                sendMessageToArena(chatColor + teamName + "§f: §a§l" + pair[1] + " §f" + flagString(pair[1]));
             }
             removeFlag(pair[0]);
             teamPlayers.get(pair[0]).stream().sorted(Comparator.comparingInt(o -> -1 * getState(o).getSortingValue())).forEach(p -> {
@@ -198,7 +200,8 @@ public class CaptureTheFlag extends PvPTeamSelectorGame {
         String name = (String) team.get("name");
         HashMap<String, Object> stealTeam = teams.get(cs.team);
         ChatColor stealColor = (ChatColor) stealTeam.get("chat-color");
-        sendTitleToArena(color + name + " flag has been stolen!", "§fTaken by " + stealColor + player.getDisplayName(), 10, 60, 10);
+        sendTitleToArena(color + name + " flag has been stolen!", "§fTaken by " + stealColor + player.getDisplayName() + "§f!", 10, 60, 10);
+        sendMessageToArena(color + name + " §fflag has been stolen! Taken by " + stealColor + player.getDisplayName() + "§f!");
         playFlagSound(cs.team, flag);
         displayScoreboard();
     }
@@ -220,11 +223,13 @@ public class CaptureTheFlag extends PvPTeamSelectorGame {
         HashMap<String, Object> team = teams.get(i);
         ChatColor color = (ChatColor) team.get("chat-color");
         String name = (String) team.get("name");
-        sendTitleToArena(color + name + " flag has been dropped!", "§fReturning in §a10s", 10, 60, 10);
+        sendTitleToArena(color + name + " flag has been dropped!", "§fReturning in §a10s§f!", 10, 60, 10);
+        sendMessageToArena(color + name + " §fflag has been dropped! Returning in §a10s§f!");
         flagsReturning.add(Bukkit.getScheduler().scheduleSyncDelayedTask(CVCombat.getInstance(), () -> {
             placeFlag(i);
             teamFlags.set(i, true);
             sendTitleToArena(color + name + " flag has been returned!", "", 10, 60, 10);
+            sendMessageToArena(color + name + " §fflag has been returned!");
             displayScoreboard();
         }, 10L * 20L));
     }
@@ -294,7 +299,15 @@ public class CaptureTheFlag extends PvPTeamSelectorGame {
             }
                 scoreboardLines.add(message);
         }
-        Scoreboard scoreboard = GameUtils.createScoreboard(arena, "§c§lCapture The Flag", scoreboardLines);
+        Scoreboard scoreboard = GameUtils.createScoreboard(arena, "§e§lCapture The Flag", scoreboardLines);
         sendScoreboardToArena(scoreboard);
+    }
+
+    private String flagString(Integer count) {
+        if (count == 1) {
+            return "flag";
+        } else {
+            return "flags";
+        }
     }
 }
