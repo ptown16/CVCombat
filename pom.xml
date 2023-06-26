@@ -59,7 +59,7 @@
             <groupId>org.cubeville</groupId>
             <artifactId>CVLoadouts</artifactId>
             <version>1.18</version>
-            <scope>compile</scope>
+            <scope>provided</scope>
         </dependency>
     </dependencies>
 </project>

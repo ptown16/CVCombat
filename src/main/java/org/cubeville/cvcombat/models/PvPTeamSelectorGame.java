@@ -104,9 +104,12 @@ public abstract class PvPTeamSelectorGame extends TeamSelectorGame {
                     player.sendMessage(chatColor + "It's a free for all!");
                 }
             //    player.sendMessage(chatColor + "First to " + getVariable("tdm-max-score") + " points wins!");
-                startPlayerRespawn(player, (int) getVariable("initial-spawn-time"));
+                int initialSpawnTime = usesDefaultKits() ? (int) getVariable("initial-spawn-time") : 0;
+                startPlayerRespawn(player, initialSpawnTime);
                 // force open the inventory, but only on the first spawn in
-                player.openInventory(generateKitInventory(player));
+                if (usesDefaultKits()) {
+                    player.openInventory(generateKitInventory(player));
+                }
             }
         }
     }
@@ -184,10 +187,12 @@ public abstract class PvPTeamSelectorGame extends TeamSelectorGame {
         healPlayer(p);
         p.getInventory().clear();
         addSpectator(p);
-        if (pState.selectedKit != null) {
-            applyLoadoutFromState(p, pState);
+        if (usesDefaultKits()) {
+            if (pState.selectedKit != null) {
+                applyLoadoutFromState(p, pState);
+            }
+            p.getInventory().setItem(8, KIT_SELECTION_ITEM);
         }
-        p.getInventory().setItem(8, KIT_SELECTION_ITEM);
         pState.respawnTimer = Bukkit.getScheduler().scheduleSyncRepeatingTask(CVCombat.getInstance(), new Runnable() {
             boolean firstRun = true;
             int rsTime = respawnTime;
@@ -215,18 +220,19 @@ public abstract class PvPTeamSelectorGame extends TeamSelectorGame {
         List<Location> tps = (List<Location>) teams.get(pState.team).get("tps");
         player.teleport(tps.get(respawnIndex));
         removeSpectator(player);
-        applyLoadoutFromState(player, pState);
+        if (usesDefaultKits()) {
+            applyLoadoutFromState(player, pState);
+            GameUtils.sendMetricToCVStats("spawned_kit", Map.of(
+                    "arena", arena.getName(),
+                    "game", getId(),
+                    "kit", indexToLoadoutName.get(pState.selectedKit),
+                    "player", player.getUniqueId().toString()
+            ));
+        }
         player.closeInventory();
         respawnIndex++;
         if (respawnIndex >= tps.size()) { respawnIndex = 0; }
         teamIndexToTpIndex.set(pState.team, respawnIndex);
-        GameUtils.sendMetricToCVStats("spawned_kit", Map.of(
-                "arena", arena.getName(),
-                "game", getId(),
-                "kit", indexToLoadoutName.get(pState.selectedKit),
-                "player", player.getUniqueId().toString()
-        ));
-
         healPlayer(player);
 
         hasSpawned = true;
@@ -353,7 +359,7 @@ public abstract class PvPTeamSelectorGame extends TeamSelectorGame {
         GameUtils.sendMetricToCVStats("pvp_death", Map.of(
                 "arena", arena.getName(),
                 "game", getId(),
-                "kit", indexToLoadoutName.get(hitState.selectedKit),
+                "kit", usesDefaultKits() ? indexToLoadoutName.get(hitState.selectedKit) : "none",
                 "player", hit.getUniqueId().toString()
         ));
 
@@ -366,7 +372,7 @@ public abstract class PvPTeamSelectorGame extends TeamSelectorGame {
             GameUtils.sendMetricToCVStats("pvp_kill", Map.of(
                     "arena", arena.getName(),
                     "game", getId(),
-                    "kit", indexToLoadoutName.get(killerState.selectedKit),
+                    "kit", usesDefaultKits() ? indexToLoadoutName.get(hitState.selectedKit) : "none",
                     "player", killer.getUniqueId().toString()
             ));
 
