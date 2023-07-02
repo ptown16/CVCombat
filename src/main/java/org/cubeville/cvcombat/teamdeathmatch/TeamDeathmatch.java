@@ -1,4 +1,4 @@
-package org.cubeville.cvcombat.deathmatch;
+package org.cubeville.cvcombat.teamdeathmatch;
 
 import net.md_5.bungee.api.ChatColor;
 import org.bukkit.Bukkit;
@@ -7,19 +7,16 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
-import org.bukkit.event.inventory.InventoryClickEvent;
-import org.bukkit.inventory.ItemStack;
 import org.bukkit.scoreboard.DisplaySlot;
 import org.cubeville.cvcombat.CVCombat;
 import org.cubeville.cvcombat.models.PvPGameOptions;
 import org.cubeville.cvcombat.models.PvPTeamSelectorGame;
-import org.cubeville.cvgames.utils.GameUtils;
 import org.cubeville.cvgames.vartypes.*;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class Deathmatch extends PvPTeamSelectorGame {
+public class TeamDeathmatch extends PvPTeamSelectorGame {
 
     private final ArrayList<Integer[]> teamScores = new ArrayList<>();
     private long startTime = 0;
@@ -28,10 +25,10 @@ public class Deathmatch extends PvPTeamSelectorGame {
 
 
 
-    public Deathmatch(String id, String arenaName) {
+    public TeamDeathmatch(String id, String arenaName) {
         super(id, arenaName);
         addGameVariable("tdm-max-score", new GameVariableInt("The max score a team can get before they win"), 20);
-        addGameVariable("tdm-duration", new GameVariableInt("The max amount of time a game lasts (in minutes)"), 10);
+        addGameVariable("dm-duration", new GameVariableInt("The max amount of time a game lasts (in minutes)"), 10);
     }
 
     public PvPGameOptions getOptions() {
@@ -44,14 +41,14 @@ public class Deathmatch extends PvPTeamSelectorGame {
     }
 
     @Override
-    protected DeathmatchState getState(Player p) {
-        if (p == null || state.get(p) == null || !(state.get(p) instanceof DeathmatchState)) return null;
-        return (DeathmatchState) state.get(p);
+    protected TeamDeathmatchState getState(Player p) {
+        if (p == null || state.get(p) == null || !(state.get(p) instanceof TeamDeathmatchState)) return null;
+        return (TeamDeathmatchState) state.get(p);
     }
 
     @Override
     public void onPlayerLeave(Player p) {
-        DeathmatchState ds = getState(p);
+        TeamDeathmatchState ds = getState(p);
         if (isLastOnTeam(p)) {
             teamScores.set(ds.team, new Integer[]{ds.team, -999});
         }
@@ -73,7 +70,7 @@ public class Deathmatch extends PvPTeamSelectorGame {
             teamScores.add(new Integer[]{ i, 0 });
 
             for (Player player : teamPlayers) {
-                state.put(player, new DeathmatchState(i));
+                state.put(player, new TeamDeathmatchState(i));
                 player.sendMessage(chatColor + "First to " + getVariable("tdm-max-score") + " points wins!");
 
             }
@@ -83,7 +80,7 @@ public class Deathmatch extends PvPTeamSelectorGame {
 
 
         // add the initial spawn time to the duration
-        long duration = ((((int) getVariable("tdm-duration")) * 60L) + ((int) getVariable("initial-spawn-time"))) * 1000L;
+        long duration = ((((int) getVariable("dm-duration")) * 60L) + ((int) getVariable("initial-spawn-time"))) * 1000L;
         scoreboardSecondUpdater = Bukkit.getScheduler().scheduleSyncRepeatingTask(CVCombat.getInstance(), () -> {
             currentTime = duration - (System.currentTimeMillis() - startTime);
             if (currentTime > 0) {
@@ -114,7 +111,7 @@ public class Deathmatch extends PvPTeamSelectorGame {
             }
             teamPlayers.get(pair[0]).stream().sorted(Comparator.comparingInt(o -> -1 * getState(o).getSortingValue())).forEach(p -> {
                 String message = "§f- " + chatColor + p.getDisplayName() + " §a🗡§f";
-                DeathmatchState ds = getState(p);
+                TeamDeathmatchState ds = getState(p);
                 message = message + ds.kills + " §c❌§f";
                 message = message + ds.deaths + " §e⚖§f";
                 if (ds.kills == 0) {
@@ -140,9 +137,9 @@ public class Deathmatch extends PvPTeamSelectorGame {
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onPlayerDeath(PlayerDeathEvent e) {
         Player killer = e.getEntity().getKiller();
-        DeathmatchState killerState = getState(killer);
+        TeamDeathmatchState killerState = getState(killer);
         Player hit = e.getEntity();
-        DeathmatchState hitState = getState(hit);
+        TeamDeathmatchState hitState = getState(hit);
 
         // check to make sure the person who died is in the pvp game
         if (hitState == null) return;

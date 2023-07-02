@@ -2,7 +2,6 @@ package org.cubeville.cvcombat.capturetheflag;
 
 import net.md_5.bungee.api.ChatColor;
 import org.bukkit.Bukkit;
-import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.block.Block;
@@ -18,7 +17,6 @@ import org.bukkit.scoreboard.DisplaySlot;
 import org.bukkit.scoreboard.Scoreboard;
 import org.cubeville.cvcombat.CVCombat;
 import org.cubeville.cvcombat.models.PvPGameOptions;
-import org.cubeville.cvcombat.models.PvPPlayerState;
 import org.cubeville.cvcombat.models.PvPTeamSelectorGame;
 import org.cubeville.cvgames.utils.GameUtils;
 import org.cubeville.cvgames.vartypes.*;

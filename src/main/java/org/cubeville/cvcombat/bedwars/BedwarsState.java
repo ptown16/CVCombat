@@ -1,8 +1,8 @@
 package org.cubeville.cvcombat.bedwars;
 
-import org.cubeville.cvcombat.models.PvPPlayerState;
+import org.cubeville.cvcombat.models.PvPTeamPlayerState;
 
-public class BedwarsState extends PvPPlayerState {
+public class BedwarsState extends PvPTeamPlayerState {
     public BedwarsState(int team) {
         super(team);
     }
