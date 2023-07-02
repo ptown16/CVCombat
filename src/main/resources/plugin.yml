@@ -4,6 +4,6 @@ main: org.cubeville.cvcombat.CVCombat
 api-version: 1.18
 depend: [ CVGames, CVLoadouts ]
 softdepend: [ CVStats ]
-authors: [ Ptown16 ]
+authors: [ Ptown16, WeatherCats, WallyDonkey ]
 description: A plugin for Player vs Player Combat on Cubeville
 website: cubeville.org
