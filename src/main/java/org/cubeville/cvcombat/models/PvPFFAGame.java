@@ -262,28 +262,6 @@ public abstract class PvPFFAGame extends Game {
         return "Kits";
     }
 
-    public void onPlayerDamage(EntityDamageByEntityEvent e) {
-        // if there's friendly fire, we don't need to check any of this
-        if ((Boolean) getVariable("friendly-fire")) return;
-
-        // check if the hit is within the game
-        if (!(e.getEntity() instanceof Player)) return;
-        Player damager;
-        if (e.getDamager() instanceof Player) {
-            damager = (Player) e.getDamager();
-        } else if (e.getDamager() instanceof Projectile) {
-            Projectile arrow = (Projectile) e.getDamager();
-            if (!(arrow.getShooter() instanceof Player)) return;
-            damager = (Player) arrow.getShooter();
-        } else {
-            return;
-        }
-        PvPPlayerState damagerState = getState(damager);
-        Player hit = (Player) e.getEntity();
-        PvPPlayerState hitState = getState(hit);
-        if (damagerState == null || hitState == null) return;
-    }
-
     public void onPlayerDeath(PlayerDeathEvent e) {
         Player killer = e.getEntity().getKiller();
         PvPPlayerState killerState = getState(killer);
@@ -370,5 +348,4 @@ public abstract class PvPFFAGame extends Game {
             ));
         });
     }
-
 }
