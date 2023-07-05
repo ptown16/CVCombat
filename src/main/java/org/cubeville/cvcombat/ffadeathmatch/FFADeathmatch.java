@@ -104,11 +104,6 @@ public class FFADeathmatch extends PvPFFAGame {
         super.onGameFinish();
     }
 
-    @EventHandler
-    public void onPlayerDamage(EntityDamageByEntityEvent e) {
-        super.onPlayerDamage(e);
-    }
-
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onPlayerDeath(PlayerDeathEvent e) {
         Player killer = e.getEntity().getKiller();

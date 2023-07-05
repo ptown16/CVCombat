@@ -330,6 +330,10 @@ public abstract class PvPTeamSelectorGame extends TeamSelectorGame {
     }
 
     public void onPvPPlayerDeath(PlayerDeathEvent e) {
+        onPvPPlayerDeath(e, true);
+    }
+
+    public void onPvPPlayerDeath(PlayerDeathEvent e, boolean doRespawn) {
         Player killer = e.getEntity().getKiller();
         PvPTeamPlayerState killerState = getState(killer);
         Player hit = e.getEntity();
@@ -379,7 +383,9 @@ public abstract class PvPTeamSelectorGame extends TeamSelectorGame {
             sendMessageToArena(deathMessage);
         }
 
-        startPlayerRespawn(hit, (int) getVariable("respawn-time"));
+        if (doRespawn) {
+            startPlayerRespawn(hit, (int) getVariable("respawn-time"));
+        }
 
     }
 
