@@ -37,7 +37,7 @@ public abstract class PvPFFAGame extends Game {
         super(id, arenaName);
         addGameVariable("respawn-time", new GameVariableInt("The amount of time before a player respawns into the arena"), 10);
         addGameVariable("ffa-tps", new GameVariableList<>(GameVariableLocation.class, "The locations that players will spawn in at"));
-        addGameVariable("ffa-chat-color", new GameVariableChatColor(), "The chat color used in a FFA match.");
+        addGameVariable("ffa-chat-color", new GameVariableChatColor("The chat color used in a FFA match."));
         if (usesDefaultKits()) {
             addGameVariable("ffa-loadout-team", new GameVariableString("The team used for loadouts"));
             addGameVariable("initial-spawn-time", new GameVariableInt("The amount of time before a player respawns into the arena when spawned in for the first time"), 15);addGameVariable("initial-spawn-time", new GameVariableInt("The amount of time before a player respawns into the arena when spawned in for the first time"), 15);
