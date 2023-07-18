@@ -28,6 +28,7 @@ public class TeamElimination extends PvPTeamSelectorGame {
     private long startTime = 0;
     private long currentTime;
     protected int revealSecondUpdater;
+    private boolean roundEnded = false;
 
     public TeamElimination(String id, String arenaName) {
         super(id, arenaName);
@@ -67,6 +68,7 @@ public class TeamElimination extends PvPTeamSelectorGame {
                 player.sendMessage(chatColor + "Last team standing in " + getVariable("tdm-max-score") + " rounds wins!");
             }
         }
+        roundEnded = false;
         super.onPvPGameStart(list);
         displayScoreboard();
 
@@ -120,6 +122,7 @@ public class TeamElimination extends PvPTeamSelectorGame {
                     }
                 }
             }
+            roundEnded = false;
             displayScoreboard();
             startRevealUpdater();
         }, 3 * 20L);
@@ -205,6 +208,7 @@ public class TeamElimination extends PvPTeamSelectorGame {
     }
 
     private void finishRound() {
+        if (roundEnded) return;
         Bukkit.getScheduler().cancelTask(revealSecondUpdater);
         revealSecondUpdater = -1;
         for (Player player : state.keySet()) {
@@ -226,6 +230,7 @@ public class TeamElimination extends PvPTeamSelectorGame {
             finishGame();
             return;
         }
+        roundEnded = true;
         String teamName = (String) teams.get(roundWinner).get("name");
         ChatColor chatColor = (ChatColor) teams.get(roundWinner).get("chat-color");
         sendMessageToArena(chatColor + teamName + chatColor + " won the round!");
