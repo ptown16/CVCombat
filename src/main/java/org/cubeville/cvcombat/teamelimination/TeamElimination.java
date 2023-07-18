@@ -136,6 +136,7 @@ public class TeamElimination extends PvPTeamSelectorGame {
         }
         if (isLastOnTeam(player)) {
             teamScores.set(es.team, new Integer[]{es.team, -999});
+            teamOvrScores.set(es.team, new Integer[]{es.team, -999});
         }
         removeSpectator(player);
         player.setGlowing(false);
