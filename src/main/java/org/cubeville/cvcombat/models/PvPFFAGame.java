@@ -263,6 +263,10 @@ public abstract class PvPFFAGame extends Game {
     }
 
     public void onPlayerDeath(PlayerDeathEvent e) {
+        onPlayerDeath(e, true);
+    }
+
+    public void onPlayerDeath(PlayerDeathEvent e, boolean doRespawn) {
         Player killer = e.getEntity().getKiller();
         PvPPlayerState killerState = getState(killer);
         Player hit = e.getEntity();
@@ -311,7 +315,9 @@ public abstract class PvPFFAGame extends Game {
             sendMessageToArena(deathMessage);
         }
 
-        startPlayerRespawn(hit, (int) getVariable("respawn-time"));
+        if (doRespawn) {
+            startPlayerRespawn(hit, (int) getVariable("respawn-time"));
+        }
 
     }
 
